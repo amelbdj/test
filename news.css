@@ -1,0 +1,36 @@
+:root {
+    --primary-color: #ff4c24;
+    --bg-color: #f9f9f9;
+    --text-color: #333;
+    --input-bg: #fff;
+    --shadow: rgba(255, 76, 36, 0.2);
+    --success-color: #4CAF50;
+    --error-color: #f44336;
+}
+
+
+.status-message.error {
+    background-color: rgba(244, 67, 54, 0.1);
+    color: var(--error-color);
+}
+
+.status-message.success {
+    background-color: rgba(76, 175, 80, 0.1);
+    color: var(--success-color);
+}
+
+.status-message {
+    padding: 12px;
+    border-radius: 8px;
+    
+    text-align: center;
+    font-weight: 500;
+   
+}
+
+@media screen and (min-width: 1024px) {
+    .status-message {
+       width:100%;
+       height: 5rem;
+    }
+}

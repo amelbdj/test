@@ -1,0 +1,60 @@
+form {
+    display: flex;
+    flex-direction: column;
+    margin-top: 5rem;
+    gap: 2rem;
+    
+}
+
+.creer{
+    background-color:  #ff4c24;
+    margin-top: 1rem;
+    border-radius:14px;
+    width: 90%;
+  height: 3.1875rem;
+  border: none;
+  cursor: pointer;
+  color: white;
+  font-weight: 500;
+}
+
+input{
+    border-radius: 14px;
+    height: 2rem;
+    outline: none;
+    width: 90%;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  background-color: white;
+  outline: none;
+  font-size: 16px;
+  box-shadow: 1px 1px 1px #999;
+    
+}
+
+textarea {
+    width: 90%;
+    padding: 10px;
+    padding-left: 15px; 
+    border-radius: 8px;
+    background-color: white;
+    font-size: 16px;
+    box-shadow: 1px 1px 1px #999;
+    height: 120px;
+    resize: none;
+    outline: none;
+ }
+
+
+
+label{
+    font-weight:500 ;
+}
+@media screen and (min-width: 1024px) {
+    form{
+        width: 40%;
+        margin-left: 10rem;
+       
+    }
+}
