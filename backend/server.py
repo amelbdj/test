@@ -16,6 +16,7 @@ import bcrypt
 from bson import ObjectId
 import base64
 import shutil
+import httpx
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -23,6 +24,9 @@ load_dotenv(ROOT_DIR / '.env')
 # Media storage directory
 MEDIA_DIR = ROOT_DIR / 'media'
 MEDIA_DIR.mkdir(exist_ok=True)
+
+# Expo Push Notification URL
+EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 
 # JWT Configuration
 JWT_SECRET = os.getenv('JWT_SECRET', 'dropa-super-secret-key-change-in-production')
@@ -75,7 +79,9 @@ class UserProfile(BaseModel):
     bio: Optional[str] = ""
     profile_picture: Optional[str] = None  # base64
     streak: int = 0
+    max_streak: int = 0
     last_drop_date: Optional[str] = None
+    streak_freezes: int = 0
     friends_count: int = 0
     created_at: str
 
@@ -163,6 +169,19 @@ class Notification(BaseModel):
     read: bool = False
     created_at: str
 
+class PushTokenRegister(BaseModel):
+    token: str
+
+class StreakDetails(BaseModel):
+    current_streak: int
+    max_streak: int
+    streak_freezes: int
+    last_drop_date: Optional[str] = None
+    milestones: List[dict]
+    next_milestone: Optional[dict] = None
+    days_active_this_week: int
+    is_at_risk: bool
+
 # ==================== AUTH HELPERS ====================
 
 def hash_password(password: str) -> str:
@@ -199,6 +218,36 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     except Exception as e:
         logger.error(f"Auth error: {e}")
         raise HTTPException(status_code=401, detail="Authentication failed")
+
+# ==================== PUSH NOTIFICATION HELPER ====================
+
+async def send_push_notification(user_id: str, title: str, body: str, data: dict = None):
+    """Send a push notification to a user via Expo Push API"""
+    try:
+        user = await db.users.find_one({'_id': ObjectId(user_id)})
+        if not user or not user.get('push_token'):
+            return
+        
+        push_token = user['push_token']
+        if not push_token.startswith('ExponentPushToken'):
+            return
+        
+        message = {
+            "to": push_token,
+            "sound": "default",
+            "title": title,
+            "body": body,
+            "data": data or {},
+        }
+        
+        async with httpx.AsyncClient() as client_http:
+            await client_http.post(
+                EXPO_PUSH_URL,
+                json=message,
+                headers={"Content-Type": "application/json"}
+            )
+    except Exception as e:
+        logger.error(f"Push notification error: {e}")
 
 # ==================== REVEAL LOGIC ====================
 
@@ -451,6 +500,14 @@ async def send_friend_request(user_id: str, current_user: dict = Depends(get_cur
         'created_at': datetime.now(timezone.utc).isoformat()
     }
     await db.notifications.insert_one(notification_doc)
+    
+    # Send push notification
+    await send_push_notification(
+        user_id, 
+        'Nouvelle demande d\'ami',
+        f'{current_user["username"]} veut devenir votre ami',
+        {'type': 'friend_request', 'screen': 'friends'}
+    )
     
     return {'message': 'Friend request sent'}
 
@@ -742,6 +799,13 @@ async def like_drop(drop_id: str, current_user: dict = Depends(get_current_user)
                 'created_at': datetime.now(timezone.utc).isoformat()
             }
             await db.notifications.insert_one(notification_doc)
+            # Send push for like
+            await send_push_notification(
+                drop['user_id'],
+                'Nouveau like ❤️',
+                f'{current_user["username"]} a aime votre Drop',
+                {'type': 'like', 'screen': 'drop', 'drop_id': drop_id}
+            )
     
     return {'action': action}
 
@@ -780,6 +844,13 @@ async def create_comment(drop_id: str, comment_data: CommentCreate, current_user
             'created_at': datetime.now(timezone.utc).isoformat()
         }
         await db.notifications.insert_one(notification_doc)
+        # Send push for comment
+        await send_push_notification(
+            drop['user_id'],
+            'Nouveau commentaire 💬',
+            f'{current_user["username"]}: {comment_data.content[:50]}',
+            {'type': 'comment', 'screen': 'drop', 'drop_id': drop_id}
+        )
     
     comment = serialize_doc(comment_doc)
     
@@ -985,6 +1056,14 @@ async def send_message(conversation_id: str, message_data: MessageCreate, curren
     }
     await db.notifications.insert_one(notification_doc)
     
+    # Send push for new message
+    await send_push_notification(
+        recipient_id,
+        f'Message de {current_user["username"]}',
+        message_data.content[:80],
+        {'type': 'message', 'screen': 'chat', 'conversation_id': conversation_id}
+    )
+    
     msg = serialize_doc(message_doc)
     
     return Message(
@@ -1034,6 +1113,111 @@ async def get_unread_count(current_user: dict = Depends(get_current_user)):
         'read': False
     })
     return {'count': count}
+
+# ==================== PUSH TOKEN ====================
+
+@api_router.post("/push-token")
+async def register_push_token(data: PushTokenRegister, current_user: dict = Depends(get_current_user)):
+    """Register a push notification token for the current user"""
+    await db.users.update_one(
+        {'_id': ObjectId(current_user['id'])},
+        {'$set': {'push_token': data.token}}
+    )
+    return {'message': 'Push token registered'}
+
+# ==================== STREAK DETAILS ====================
+
+STREAK_MILESTONES = [
+    {'days': 3, 'emoji': '🌱', 'label': 'Debutant', 'color': '#10B981'},
+    {'days': 7, 'emoji': '🔥', 'label': 'En feu', 'color': '#FF6B35'},
+    {'days': 14, 'emoji': '⚡', 'label': 'Inarretable', 'color': '#F59E0B'},
+    {'days': 30, 'emoji': '💎', 'label': 'Diamant', 'color': '#3B82F6'},
+    {'days': 60, 'emoji': '👑', 'label': 'Legende', 'color': '#8B5CF6'},
+    {'days': 100, 'emoji': '🏆', 'label': 'Mythique', 'color': '#FFD700'},
+]
+
+@api_router.get("/streak/details")
+async def get_streak_details(current_user: dict = Depends(get_current_user)):
+    """Get detailed streak information"""
+    user = await db.users.find_one({'_id': ObjectId(current_user['id'])})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    current_streak = user.get('streak', 0)
+    max_streak = user.get('max_streak', current_streak)
+    streak_freezes = user.get('streak_freezes', 0)
+    last_drop_date = user.get('last_drop_date')
+    
+    # Check if streak is at risk (no drop today and last drop was yesterday)
+    today = datetime.now(timezone.utc).date()
+    is_at_risk = False
+    if last_drop_date:
+        last_date = datetime.fromisoformat(last_drop_date).date() if isinstance(last_drop_date, str) else last_drop_date
+        diff = (today - last_date).days
+        is_at_risk = diff >= 1 and current_streak > 0
+    
+    # Calculate milestones achieved
+    milestones = []
+    next_milestone = None
+    for ms in STREAK_MILESTONES:
+        milestone_data = {**ms, 'achieved': current_streak >= ms['days']}
+        milestones.append(milestone_data)
+        if not next_milestone and current_streak < ms['days']:
+            next_milestone = {
+                **ms,
+                'days_remaining': ms['days'] - current_streak,
+                'progress': current_streak / ms['days'],
+            }
+    
+    # Count days active this week
+    days_since_monday = today.weekday()
+    week_start = today - timedelta(days=days_since_monday)
+    week_start_str = week_start.isoformat()
+    
+    week_drops = await db.drops.find({
+        'user_id': current_user['id'],
+        'created_at': {'$gte': week_start_str}
+    }).to_list(100)
+    
+    unique_days = set()
+    for drop in week_drops:
+        try:
+            drop_date = datetime.fromisoformat(drop['created_at'].replace('Z', '+00:00')).date()
+            unique_days.add(drop_date)
+        except (ValueError, KeyError):
+            pass
+    
+    return StreakDetails(
+        current_streak=current_streak,
+        max_streak=max_streak,
+        streak_freezes=streak_freezes,
+        last_drop_date=last_drop_date,
+        milestones=milestones,
+        next_milestone=next_milestone,
+        days_active_this_week=len(unique_days),
+        is_at_risk=is_at_risk,
+    )
+
+@api_router.post("/streak/freeze")
+async def use_streak_freeze(current_user: dict = Depends(get_current_user)):
+    """Use a streak freeze to save the current streak"""
+    user = await db.users.find_one({'_id': ObjectId(current_user['id'])})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    freezes = user.get('streak_freezes', 0)
+    if freezes <= 0:
+        raise HTTPException(status_code=400, detail="Pas de streak freeze disponible")
+    
+    today = datetime.now(timezone.utc).date().isoformat()
+    await db.users.update_one(
+        {'_id': ObjectId(current_user['id'])},
+        {
+            '$inc': {'streak_freezes': -1},
+            '$set': {'last_drop_date': today}
+        }
+    )
+    return {'message': 'Streak freeze utilise !', 'remaining_freezes': freezes - 1}
 
 # ==================== WEEKLY SUMMARY ====================
 

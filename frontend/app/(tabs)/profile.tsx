@@ -162,13 +162,17 @@ export default function ProfileScreen() {
                 <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Amis</Text>
               </View>
               <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
-              <View style={styles.statItem}>
+              <AnimatedPressable
+                style={styles.statItem}
+                onPress={() => router.push('/streak')}
+                haptic="light"
+              >
                 <View style={styles.streakContainer}>
                   <Text style={styles.streakEmoji}>🔥</Text>
                   <Text style={[styles.statValue, { color: theme.streak }]}>{user.streak}</Text>
                 </View>
                 <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Streak</Text>
-              </View>
+              </AnimatedPressable>
             </View>
 
             <AnimatedPressable

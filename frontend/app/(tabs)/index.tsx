@@ -23,6 +23,7 @@ import { DropCardSkeleton } from '../../src/components/Skeleton';
 import { BlurredDrop } from '../../src/components/BlurredDrop';
 import { AnimatedPressable, AnimatedLikeButton, FadeInView, StaggerItem } from '../../src/components/Animations';
 import { RevealAnimation } from '../../src/components/RevealAnimation';
+import { usePushNotifications } from '../../src/hooks/usePushNotifications';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -31,6 +32,7 @@ const { width } = Dimensions.get('window');
 export default function FeedScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const { notification } = usePushNotifications();
   const [drops, setDrops] = useState<Drop[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

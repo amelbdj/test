@@ -144,6 +144,18 @@ export default function RootLayout() {
           }}
         />
 
+        {/* Streak: slide from bottom (immersive) */}
+        <Stack.Screen
+          name="streak"
+          options={{
+            animation: 'slide_from_bottom',
+            animationDuration: 350,
+            gestureEnabled: true,
+            gestureDirection: 'vertical',
+            presentation: 'card',
+          }}
+        />
+
         {/* Standalone messages: push */}
         <Stack.Screen
           name="messages"
