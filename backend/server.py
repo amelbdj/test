@@ -649,6 +649,8 @@ async def create_drop(drop_data: DropCreate, current_user: dict = Depends(get_cu
     # Update streak
     today = datetime.now(timezone.utc).date().isoformat()
     last_drop = current_user.get('last_drop_date')
+    old_streak = current_user.get('streak', 0)
+    new_streak = old_streak
     
     if last_drop:
         last_date = datetime.fromisoformat(last_drop).date()
@@ -657,23 +659,65 @@ async def create_drop(drop_data: DropCreate, current_user: dict = Depends(get_cu
         
         if diff == 1:
             # Continue streak
+            new_streak = old_streak + 1
+            update_fields = {'$set': {'last_drop_date': today, 'streak': new_streak}}
+            # Update max_streak if needed
+            max_streak = current_user.get('max_streak', old_streak)
+            if new_streak > max_streak:
+                update_fields['$set']['max_streak'] = new_streak
             await db.users.update_one(
                 {'_id': ObjectId(current_user['id'])},
-                {'$inc': {'streak': 1}, '$set': {'last_drop_date': today}}
+                update_fields
             )
         elif diff > 1:
             # Reset streak
+            new_streak = 1
             await db.users.update_one(
                 {'_id': ObjectId(current_user['id'])},
                 {'$set': {'streak': 1, 'last_drop_date': today}}
             )
-        # If diff == 0, already dropped today, no change
+        else:
+            # Same day, no streak change
+            new_streak = old_streak
     else:
         # First drop ever
+        new_streak = 1
         await db.users.update_one(
             {'_id': ObjectId(current_user['id'])},
-            {'$set': {'streak': 1, 'last_drop_date': today}}
+            {'$set': {'streak': 1, 'last_drop_date': today, 'max_streak': 1}}
         )
+    
+    # Check milestone rewards
+    awarded_milestones = current_user.get('awarded_milestones', [])
+    for milestone in STREAK_MILESTONES:
+        if new_streak >= milestone['days'] and milestone['days'] not in awarded_milestones:
+            # Award freeze reward!
+            reward = milestone['reward_freezes']
+            await db.users.update_one(
+                {'_id': ObjectId(current_user['id'])},
+                {
+                    '$inc': {'streak_freezes': reward},
+                    '$push': {'awarded_milestones': milestone['days']}
+                }
+            )
+            # Create celebration notification
+            notif_doc = {
+                'user_id': current_user['id'],
+                'type': 'milestone',
+                'title': f'{milestone["emoji"]} Milestone atteint !',
+                'message': f'Bravo ! {milestone["label"]} ({milestone["days"]}j) - Vous gagnez {reward} Streak Freeze{"s" if reward > 1 else ""} !',
+                'related_id': None,
+                'read': False,
+                'created_at': datetime.now(timezone.utc).isoformat()
+            }
+            await db.notifications.insert_one(notif_doc)
+            # Send push celebration
+            await send_push_notification(
+                current_user['id'],
+                f'{milestone["emoji"]} {milestone["label"]} !',
+                f'Streak de {new_streak} jours ! +{reward} Streak Freeze{"s" if reward > 1 else ""}',
+                {'type': 'milestone', 'screen': 'streak', 'milestone_days': milestone['days']}
+            )
     
     drop = serialize_doc(drop_doc)
     
@@ -1128,12 +1172,12 @@ async def register_push_token(data: PushTokenRegister, current_user: dict = Depe
 # ==================== STREAK DETAILS ====================
 
 STREAK_MILESTONES = [
-    {'days': 3, 'emoji': '🌱', 'label': 'Debutant', 'color': '#10B981'},
-    {'days': 7, 'emoji': '🔥', 'label': 'En feu', 'color': '#FF6B35'},
-    {'days': 14, 'emoji': '⚡', 'label': 'Inarretable', 'color': '#F59E0B'},
-    {'days': 30, 'emoji': '💎', 'label': 'Diamant', 'color': '#3B82F6'},
-    {'days': 60, 'emoji': '👑', 'label': 'Legende', 'color': '#8B5CF6'},
-    {'days': 100, 'emoji': '🏆', 'label': 'Mythique', 'color': '#FFD700'},
+    {'days': 3, 'emoji': '🌱', 'label': 'Debutant', 'color': '#10B981', 'reward_freezes': 1},
+    {'days': 7, 'emoji': '🔥', 'label': 'En feu', 'color': '#FF6B35', 'reward_freezes': 2},
+    {'days': 14, 'emoji': '⚡', 'label': 'Inarretable', 'color': '#F59E0B', 'reward_freezes': 3},
+    {'days': 30, 'emoji': '💎', 'label': 'Diamant', 'color': '#3B82F6', 'reward_freezes': 5},
+    {'days': 60, 'emoji': '👑', 'label': 'Legende', 'color': '#8B5CF6', 'reward_freezes': 7},
+    {'days': 100, 'emoji': '🏆', 'label': 'Mythique', 'color': '#FFD700', 'reward_freezes': 10},
 ]
 
 @api_router.get("/streak/details")
@@ -1157,10 +1201,15 @@ async def get_streak_details(current_user: dict = Depends(get_current_user)):
         is_at_risk = diff >= 1 and current_streak > 0
     
     # Calculate milestones achieved
+    awarded_milestones = user.get('awarded_milestones', [])
     milestones = []
     next_milestone = None
     for ms in STREAK_MILESTONES:
-        milestone_data = {**ms, 'achieved': current_streak >= ms['days']}
+        milestone_data = {
+            **ms,
+            'achieved': current_streak >= ms['days'],
+            'rewarded': ms['days'] in awarded_milestones,
+        }
         milestones.append(milestone_data)
         if not next_milestone and current_streak < ms['days']:
             next_milestone = {

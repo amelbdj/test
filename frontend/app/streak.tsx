@@ -253,8 +253,16 @@ export default function StreakScreen() {
                 </Text>
               </View>
               {milestone.achieved ? (
-                <View style={[styles.achievedBadge, { backgroundColor: '#10B98120' }]}>
-                  <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                <View style={styles.achievedRow}>
+                  {milestone.rewarded && (
+                    <View style={[styles.rewardBadge, { backgroundColor: '#3B82F620' }]}>
+                      <Text style={{ fontSize: 12 }}>🧊</Text>
+                      <Text style={[styles.rewardText, { color: '#3B82F6' }]}>+{milestone.reward_freezes}</Text>
+                    </View>
+                  )}
+                  <View style={[styles.achievedBadge, { backgroundColor: '#10B98120' }]}>
+                    <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                  </View>
                 </View>
               ) : (
                 <Ionicons name="lock-closed" size={18} color={theme.textTertiary} />
@@ -454,6 +462,23 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  achievedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  rewardBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  rewardText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 
   // Week Activity
