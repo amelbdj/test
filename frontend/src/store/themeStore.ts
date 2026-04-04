@@ -1,6 +1,5 @@
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Appearance } from 'react-native';
+import { Platform } from 'react-native';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -14,16 +13,46 @@ interface ThemeState {
 const THEME_KEY = 'dropa_theme_mode';
 
 const getSystemTheme = (): boolean => {
-  return Appearance.getColorScheme() === 'dark';
+  if (Platform.OS === 'web') {
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true;
+  }
+  return true; // Default to dark
 };
 
-export const useThemeStore = create<ThemeState>((set, get) => ({
+// Storage helper that works on both web and native
+const storage = {
+  getItem: async (key: string): Promise<string | null> => {
+    try {
+      if (Platform.OS === 'web') {
+        return localStorage.getItem(key);
+      }
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      return await AsyncStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  setItem: async (key: string, value: string): Promise<void> => {
+    try {
+      if (Platform.OS === 'web') {
+        localStorage.setItem(key, value);
+        return;
+      }
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      await AsyncStorage.setItem(key, value);
+    } catch {
+      // Ignore storage errors
+    }
+  },
+};
+
+export const useThemeStore = create<ThemeState>((set) => ({
   mode: 'dark',
   isDark: true,
 
   setMode: async (mode: ThemeMode) => {
     try {
-      await AsyncStorage.setItem(THEME_KEY, mode);
+      await storage.setItem(THEME_KEY, mode);
       const isDark = mode === 'system' ? getSystemTheme() : mode === 'dark';
       set({ mode, isDark });
     } catch (error) {
@@ -33,7 +62,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 
   loadTheme: async () => {
     try {
-      const savedMode = await AsyncStorage.getItem(THEME_KEY) as ThemeMode | null;
+      const savedMode = await storage.getItem(THEME_KEY) as ThemeMode | null;
       if (savedMode) {
         const isDark = savedMode === 'system' ? getSystemTheme() : savedMode === 'dark';
         set({ mode: savedMode, isDark });
