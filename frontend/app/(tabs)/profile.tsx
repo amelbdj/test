@@ -8,9 +8,11 @@ import {
   Image,
   Alert,
   RefreshControl,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/hooks/useTheme';
@@ -18,7 +20,6 @@ import { useAuthStore } from '../../src/store/authStore';
 import { apiClient } from '../../src/api/client';
 import { Drop } from '../../src/types';
 import { Avatar } from '../../src/components/Avatar';
-import { Button } from '../../src/components/Button';
 import { LoadingSpinner } from '../../src/components/LoadingSpinner';
 
 export default function ProfileScreen() {
@@ -97,12 +98,38 @@ export default function ProfileScreen() {
     );
   };
 
+  const renderDropItem = ({ item }: { item: Drop }) => (
+    <TouchableOpacity
+      style={[styles.dropThumbnail, { backgroundColor: theme.surfaceVariant }]}
+      onPress={() => router.push(`/drop/${item.id}`)}
+      activeOpacity={0.8}
+    >
+      {item.is_revealed && item.media_data ? (
+        <Image
+          source={{
+            uri: item.media_data.startsWith('data:')
+              ? item.media_data
+              : `data:image/jpeg;base64,${item.media_data}`,
+          }}
+          style={styles.dropImage}
+        />
+      ) : (
+        <LinearGradient
+          colors={[theme.surfaceVariant, theme.surface]}
+          style={styles.lockedDrop}
+        >
+          <Ionicons name="lock-closed" size={22} color={theme.primary} />
+        </LinearGradient>
+      )}
+    </TouchableOpacity>
+  );
+
   if (!user || loading) {
     return <LoadingSpinner fullScreen />;
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <ScrollView
         refreshControl={
           <RefreshControl
@@ -111,18 +138,24 @@ export default function ProfileScreen() {
             tintColor={theme.primary}
           />
         }
+        showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.push('/settings')} style={styles.settingsButton}>
-            <Ionicons name="settings-outline" size={24} color={theme.text} />
+          <View style={styles.placeholder} />
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Profil</Text>
+          <TouchableOpacity 
+            onPress={() => router.push('/settings')} 
+            style={[styles.settingsButton, { backgroundColor: theme.surfaceVariant }]}
+          >
+            <Ionicons name="settings-outline" size={22} color={theme.text} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.profileSection}>
           <TouchableOpacity onPress={handleChangePhoto} style={styles.avatarContainer}>
-            <Avatar source={user.profile_picture} name={user.username} size={100} />
+            <Avatar source={user.profile_picture} name={user.username} size={100} showBorder />
             <View style={[styles.editBadge, { backgroundColor: theme.primary }]}>
-              <Ionicons name="camera" size={16} color="#FFFFFF" />
+              <Ionicons name="camera" size={14} color="#FFFFFF" />
             </View>
           </TouchableOpacity>
 
@@ -130,44 +163,54 @@ export default function ProfileScreen() {
           
           {user.bio ? (
             <Text style={[styles.bio, { color: theme.textSecondary }]}>{user.bio}</Text>
-          ) : null}
+          ) : (
+            <TouchableOpacity onPress={() => router.push('/edit-profile')}>
+              <Text style={[styles.addBio, { color: theme.primary }]}>+ Ajouter une bio</Text>
+            </TouchableOpacity>
+          )}
 
-          <View style={styles.statsRow}>
+          <View style={[styles.statsRow, { backgroundColor: theme.card }]}>
             <View style={styles.statItem}>
               <Text style={[styles.statValue, { color: theme.text }]}>{drops.length}</Text>
               <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Drops</Text>
             </View>
-            <View style={styles.statDivider} />
+            <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
             <View style={styles.statItem}>
               <Text style={[styles.statValue, { color: theme.text }]}>{user.friends_count}</Text>
               <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Amis</Text>
             </View>
-            <View style={styles.statDivider} />
+            <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
             <View style={styles.statItem}>
               <View style={styles.streakContainer}>
                 <Text style={styles.streakEmoji}>🔥</Text>
-                <Text style={[styles.statValue, { color: theme.text }]}>{user.streak}</Text>
+                <Text style={[styles.statValue, { color: theme.streak }]}>{user.streak}</Text>
               </View>
               <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Streak</Text>
             </View>
           </View>
 
-          <Button
-            title="Modifier le profil"
+          <TouchableOpacity
+            style={[styles.editButton, { borderColor: theme.border }]}
             onPress={() => router.push('/edit-profile')}
-            variant="outline"
-            style={styles.editButton}
-          />
+          >
+            <Ionicons name="create-outline" size={18} color={theme.text} />
+            <Text style={[styles.editButtonText, { color: theme.text }]}>Modifier le profil</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.dropsSection}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Mes Drops</Text>
           
           {drops.length === 0 ? (
-            <View style={styles.emptyDrops}>
-              <Ionicons name="images-outline" size={48} color={theme.textTertiary} />
-              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+            <View style={[styles.emptyDrops, { backgroundColor: theme.card }]}>
+              <View style={[styles.emptyIconContainer, { backgroundColor: theme.primaryMuted }]}>
+                <Ionicons name="images-outline" size={32} color={theme.primary} />
+              </View>
+              <Text style={[styles.emptyText, { color: theme.text }]}>
                 Aucun Drop pour le moment
+              </Text>
+              <Text style={[styles.emptySubtext, { color: theme.textTertiary }]}>
+                Créez votre premier Drop !
               </Text>
             </View>
           ) : (
@@ -177,16 +220,24 @@ export default function ProfileScreen() {
                   key={drop.id}
                   style={[styles.dropThumbnail, { backgroundColor: theme.surfaceVariant }]}
                   onPress={() => router.push(`/drop/${drop.id}`)}
+                  activeOpacity={0.8}
                 >
                   {drop.is_revealed && drop.media_data ? (
                     <Image
-                      source={{ uri: drop.media_data.startsWith('data:') ? drop.media_data : `data:image/jpeg;base64,${drop.media_data}` }}
+                      source={{
+                        uri: drop.media_data.startsWith('data:')
+                          ? drop.media_data
+                          : `data:image/jpeg;base64,${drop.media_data}`,
+                      }}
                       style={styles.dropImage}
                     />
                   ) : (
-                    <View style={styles.lockedDrop}>
-                      <Ionicons name="lock-closed" size={24} color={theme.primary} />
-                    </View>
+                    <LinearGradient
+                      colors={[theme.surfaceVariant, theme.surface]}
+                      style={styles.lockedDrop}
+                    >
+                      <Ionicons name="lock-closed" size={22} color={theme.primary} />
+                    </LinearGradient>
                   )}
                 </TouchableOpacity>
               ))}
@@ -195,7 +246,7 @@ export default function ProfileScreen() {
         </View>
 
         <TouchableOpacity
-          style={[styles.logoutButton, { borderColor: theme.error }]}
+          style={[styles.logoutButton, { backgroundColor: theme.errorMuted }]}
           onPress={handleLogout}
         >
           <Ionicons name="log-out-outline" size={20} color={theme.error} />
@@ -212,20 +263,33 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  placeholder: {
+    width: 40,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
   },
   settingsButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   profileSection: {
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 24,
   },
   avatarContainer: {
     position: 'relative',
+    marginBottom: 16,
   },
   editBadge: {
     position: 'absolute',
@@ -236,40 +300,49 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#0F0F14',
   },
   username: {
     fontSize: 24,
-    fontWeight: 'bold',
-    marginTop: 12,
+    fontWeight: '800',
+    marginBottom: 4,
   },
   bio: {
-    fontSize: 14,
-    marginTop: 8,
+    fontSize: 15,
     textAlign: 'center',
     paddingHorizontal: 32,
+    lineHeight: 22,
+  },
+  addBio: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginTop: 4,
   },
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 24,
-    paddingHorizontal: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    width: '100%',
   },
   statItem: {
+    flex: 1,
     alignItems: 'center',
-    paddingHorizontal: 24,
   },
   statValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '800',
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 13,
     marginTop: 4,
   },
   statDivider: {
     width: 1,
-    height: 30,
-    backgroundColor: '#E0E0E0',
+    height: 36,
   },
   streakContainer: {
     flexDirection: 'row',
@@ -280,25 +353,49 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 20,
-    paddingHorizontal: 40,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    gap: 8,
+  },
+  editButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
   dropsSection: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingHorizontal: 20,
+    paddingTop: 8,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
     marginBottom: 16,
   },
   emptyDrops: {
     alignItems: 'center',
     paddingVertical: 40,
+    borderRadius: 16,
+  },
+  emptyIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   emptyText: {
-    marginTop: 12,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  emptySubtext: {
     fontSize: 14,
+    marginTop: 4,
   },
   dropsGrid: {
     flexDirection: 'row',
@@ -308,7 +405,7 @@ const styles = StyleSheet.create({
   dropThumbnail: {
     width: '32.5%',
     aspectRatio: 1,
-    borderRadius: 8,
+    borderRadius: 12,
     overflow: 'hidden',
   },
   dropImage: {
@@ -324,12 +421,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 16,
+    marginHorizontal: 20,
     marginTop: 32,
     marginBottom: 100,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
+    paddingVertical: 14,
+    borderRadius: 14,
     gap: 8,
   },
   logoutText: {

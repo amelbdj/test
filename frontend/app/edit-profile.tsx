@@ -7,16 +7,18 @@ import {
   Platform,
   ScrollView,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../src/hooks/useTheme';
 import { useAuthStore } from '../src/store/authStore';
 import { apiClient } from '../src/api/client';
 import { Input } from '../src/components/Input';
 import { Button } from '../src/components/Button';
-import { TouchableOpacity } from 'react-native';
+import { Avatar } from '../src/components/Avatar';
 
 export default function EditProfileScreen() {
   const theme = useTheme();
@@ -25,6 +27,38 @@ export default function EditProfileScreen() {
   const [username, setUsername] = useState(user?.username || '');
   const [bio, setBio] = useState(user?.bio || '');
   const [loading, setLoading] = useState(false);
+  const [photoLoading, setPhotoLoading] = useState(false);
+
+  const handleChangePhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission requise', 'Nous avons besoin de votre permission pour accéder à vos photos.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets[0].base64) {
+      setPhotoLoading(true);
+      try {
+        const response = await apiClient.put('/profile', {
+          profile_picture: `data:image/jpeg;base64,${result.assets[0].base64}`,
+        });
+        updateUser(response.data);
+        Alert.alert('Succès', 'Photo de profil mise à jour');
+      } catch (error) {
+        Alert.alert('Erreur', 'Impossible de mettre à jour la photo');
+      } finally {
+        setPhotoLoading(false);
+      }
+    }
+  };
 
   const handleSave = async () => {
     if (!username.trim()) {
@@ -39,8 +73,9 @@ export default function EditProfileScreen() {
         bio: bio.trim(),
       });
       updateUser(response.data);
-      Alert.alert('Succès', 'Profil mis à jour');
-      router.back();
+      Alert.alert('Succès', 'Profil mis à jour', [
+        { text: 'OK', onPress: () => router.back() }
+      ]);
     } catch (error: any) {
       Alert.alert('Erreur', error.response?.data?.detail || 'Impossible de mettre à jour le profil');
     } finally {
@@ -49,49 +84,77 @@ export default function EditProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex}
       >
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={theme.text} />
+          <TouchableOpacity 
+            onPress={() => router.back()} 
+            style={[styles.backButton, { backgroundColor: theme.surfaceVariant }]}
+          >
+            <Ionicons name="arrow-back" size={22} color={theme.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: theme.text }]}>Modifier le profil</Text>
           <View style={styles.placeholder} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.content}>
-          <Input
-            label="Pseudo"
-            value={username}
-            onChangeText={setUsername}
-            autoCapitalize="none"
-            icon="person-outline"
-          />
-
-          <View style={styles.bioContainer}>
-            <Text style={[styles.label, { color: theme.text }]}>Bio</Text>
-            <Input
-              value={bio}
-              onChangeText={setBio}
-              multiline
-              placeholder="Parlez-nous de vous..."
-              style={styles.bioInput}
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <TouchableOpacity 
+            style={styles.avatarSection} 
+            onPress={handleChangePhoto}
+            disabled={photoLoading}
+          >
+            <Avatar 
+              source={user?.profile_picture || null} 
+              name={user?.username || ''} 
+              size={100} 
+              showBorder 
             />
-            <Text style={[styles.charCount, { color: theme.textTertiary }]}>
-              {bio.length}/150
+            <View style={[styles.changePhotoButton, { backgroundColor: theme.primary }]}>
+              <Ionicons name="camera" size={16} color="#FFFFFF" />
+            </View>
+            <Text style={[styles.changePhotoText, { color: theme.primary }]}>
+              {photoLoading ? 'Chargement...' : 'Changer la photo'}
             </Text>
+          </TouchableOpacity>
+
+          <View style={[styles.formCard, { backgroundColor: theme.card }]}>
+            <Input
+              label="Pseudo"
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+              icon="at-outline"
+            />
+
+            <View style={styles.bioContainer}>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>BIO</Text>
+              <View style={[styles.bioInputContainer, { backgroundColor: theme.surfaceVariant }]}>
+                <Ionicons name="document-text-outline" size={20} color={theme.textTertiary} style={styles.bioIcon} />
+                <View style={styles.bioInputWrapper}>
+                  <Input
+                    value={bio}
+                    onChangeText={setBio}
+                    multiline
+                    placeholder="Parlez-nous de vous..."
+                    style={styles.bioInput}
+                  />
+                </View>
+              </View>
+              <Text style={[styles.charCount, { color: theme.textTertiary }]}>
+                {bio.length}/150
+              </Text>
+            </View>
           </View>
 
           <Button
-            title="Enregistrer"
+            title="Enregistrer les modifications"
             onPress={handleSave}
             loading={loading}
             fullWidth
             size="large"
-            style={styles.saveButton}
           />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -110,39 +173,82 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 12,
   },
   backButton: {
-    padding: 4,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   placeholder: {
-    width: 32,
+    width: 40,
   },
   content: {
-    padding: 16,
+    padding: 20,
+    paddingBottom: 40,
+  },
+  avatarSection: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  changePhotoButton: {
+    position: 'absolute',
+    bottom: 32,
+    right: '35%',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#0F0F14',
+  },
+  changePhotoText: {
+    marginTop: 12,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  formCard: {
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 24,
   },
   bioContainer: {
-    marginBottom: 16,
+    marginTop: 8,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 13,
+    fontWeight: '600',
     marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  bioInputContainer: {
+    flexDirection: 'row',
+    borderRadius: 14,
+    paddingLeft: 16,
+    paddingTop: 4,
+  },
+  bioIcon: {
+    marginTop: 14,
+  },
+  bioInputWrapper: {
+    flex: 1,
   },
   bioInput: {
-    minHeight: 100,
+    minHeight: 80,
+    textAlignVertical: 'top',
   },
   charCount: {
     fontSize: 12,
     textAlign: 'right',
-    marginTop: 4,
-  },
-  saveButton: {
-    marginTop: 24,
+    marginTop: 6,
   },
 });

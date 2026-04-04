@@ -1,5 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle, TextStyle } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../hooks/useTheme';
 
 interface ButtonProps {
@@ -12,6 +13,7 @@ interface ButtonProps {
   style?: ViewStyle;
   textStyle?: TextStyle;
   fullWidth?: boolean;
+  gradient?: boolean;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -24,23 +26,9 @@ export const Button: React.FC<ButtonProps> = ({
   style,
   textStyle,
   fullWidth = false,
+  gradient = true,
 }) => {
   const theme = useTheme();
-
-  const getBackgroundColor = () => {
-    if (disabled) return theme.surfaceVariant;
-    switch (variant) {
-      case 'primary':
-        return theme.primary;
-      case 'secondary':
-        return theme.secondary;
-      case 'outline':
-      case 'ghost':
-        return 'transparent';
-      default:
-        return theme.primary;
-    }
-  };
 
   const getTextColor = () => {
     if (disabled) return theme.textTertiary;
@@ -60,11 +48,11 @@ export const Button: React.FC<ButtonProps> = ({
   const getPadding = () => {
     switch (size) {
       case 'small':
-        return { paddingVertical: 8, paddingHorizontal: 16 };
+        return { paddingVertical: 10, paddingHorizontal: 18 };
       case 'large':
         return { paddingVertical: 16, paddingHorizontal: 32 };
       default:
-        return { paddingVertical: 12, paddingHorizontal: 24 };
+        return { paddingVertical: 14, paddingHorizontal: 24 };
     }
   };
 
@@ -73,9 +61,66 @@ export const Button: React.FC<ButtonProps> = ({
       case 'small':
         return 14;
       case 'large':
-        return 18;
+        return 17;
       default:
         return 16;
+    }
+  };
+
+  const renderContent = () => (
+    <>
+      {loading ? (
+        <ActivityIndicator color={getTextColor()} size="small" />
+      ) : (
+        <Text
+          style={[
+            styles.text,
+            { color: getTextColor(), fontSize: getFontSize() },
+            textStyle,
+          ]}
+        >
+          {title}
+        </Text>
+      )}
+    </>
+  );
+
+  if (variant === 'primary' && gradient && !disabled) {
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        disabled={disabled || loading}
+        activeOpacity={0.8}
+        style={[fullWidth && styles.fullWidth, style]}
+      >
+        <LinearGradient
+          colors={[theme.gradientStart, theme.gradientEnd]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={[
+            styles.button,
+            getPadding(),
+            fullWidth && styles.fullWidth,
+          ]}
+        >
+          {renderContent()}
+        </LinearGradient>
+      </TouchableOpacity>
+    );
+  }
+
+  const getBackgroundColor = () => {
+    if (disabled) return theme.surfaceVariant;
+    switch (variant) {
+      case 'primary':
+        return theme.primary;
+      case 'secondary':
+        return theme.secondary;
+      case 'outline':
+      case 'ghost':
+        return 'transparent';
+      default:
+        return theme.primary;
     }
   };
 
@@ -96,26 +141,14 @@ export const Button: React.FC<ButtonProps> = ({
       ]}
       activeOpacity={0.7}
     >
-      {loading ? (
-        <ActivityIndicator color={getTextColor()} size="small" />
-      ) : (
-        <Text
-          style={[
-            styles.text,
-            { color: getTextColor(), fontSize: getFontSize() },
-            textStyle,
-          ]}
-        >
-          {title}
-        </Text>
-      )}
+      {renderContent()}
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
   button: {
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -124,6 +157,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   text: {
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });

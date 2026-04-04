@@ -1,8 +1,9 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 import { useTheme } from '../../src/hooks/useTheme';
+import { BlurView } from 'expo-blur';
 
 export default function TabsLayout() {
   const theme = useTheme();
@@ -12,17 +13,24 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: theme.surface,
-          borderTopColor: theme.border,
-          height: 85,
-          paddingBottom: 25,
-          paddingTop: 10,
+          backgroundColor: theme.tabBar,
+          borderTopColor: theme.tabBarBorder,
+          borderTopWidth: 0.5,
+          height: Platform.OS === 'ios' ? 88 : 70,
+          paddingBottom: Platform.OS === 'ios' ? 28 : 12,
+          paddingTop: 12,
+          elevation: 0,
+          shadowOpacity: 0,
         },
         tabBarActiveTintColor: theme.primary,
         tabBarInactiveTintColor: theme.textTertiary,
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: '500',
+          fontWeight: '600',
+          marginTop: 4,
+        },
+        tabBarIconStyle: {
+          marginTop: 2,
         },
       }}
     >
@@ -30,8 +38,12 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: 'Feed',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name={focused ? 'home' : 'home-outline'} 
+              size={24} 
+              color={color} 
+            />
           ),
         }}
       />
@@ -39,16 +51,20 @@ export default function TabsLayout() {
         name="friends"
         options={{
           title: 'Amis',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name={focused ? 'people' : 'people-outline'} 
+              size={24} 
+              color={color} 
+            />
           ),
         }}
       />
       <Tabs.Screen
         name="create"
         options={{
-          title: 'Drop',
-          tabBarIcon: ({ color, size }) => (
+          title: '',
+          tabBarIcon: ({ focused }) => (
             <View style={[styles.createButton, { backgroundColor: theme.primary }]}>
               <Ionicons name="add" size={28} color="#FFFFFF" />
             </View>
@@ -57,11 +73,15 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="messages"
+        name="calendar"
         options={{
-          title: 'Messages',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubbles" size={size} color={color} />
+          title: 'Calendrier',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name={focused ? 'calendar' : 'calendar-outline'} 
+              size={24} 
+              color={color} 
+            />
           ),
         }}
       />
@@ -69,8 +89,12 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: 'Profil',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name={focused ? 'person' : 'person-outline'} 
+              size={24} 
+              color={color} 
+            />
           ),
         }}
       />
@@ -80,11 +104,16 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
   createButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 15,
+    marginBottom: Platform.OS === 'ios' ? 20 : 8,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
 });

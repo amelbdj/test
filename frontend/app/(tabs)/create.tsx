@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/hooks/useTheme';
@@ -100,12 +101,12 @@ export default function CreateDropScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.header}>
             <Text style={[styles.headerTitle, { color: theme.text }]}>Nouveau Drop</Text>
             <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
@@ -120,37 +121,47 @@ export default function CreateDropScreen() {
                 style={[styles.removeButton, { backgroundColor: theme.error }]}
                 onPress={() => setMedia(null)}
               >
-                <Ionicons name="close" size={24} color="#FFFFFF" />
+                <Ionicons name="close" size={22} color="#FFFFFF" />
               </TouchableOpacity>
+              <View style={[styles.lockedOverlay, { backgroundColor: theme.overlay }]}>
+                <Ionicons name="lock-closed" size={32} color={theme.primary} />
+                <Text style={[styles.lockedText, { color: theme.text }]}>Aperçu flouté</Text>
+              </View>
             </View>
           ) : (
             <View style={styles.mediaButtons}>
               <TouchableOpacity
-                style={[styles.mediaButton, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                style={[styles.mediaButton, { backgroundColor: theme.card }]}
                 onPress={takePhoto}
               >
-                <Ionicons name="camera" size={48} color={theme.primary} />
+                <View style={[styles.mediaIconContainer, { backgroundColor: theme.primaryMuted }]}>
+                  <Ionicons name="camera" size={32} color={theme.primary} />
+                </View>
                 <Text style={[styles.mediaButtonText, { color: theme.text }]}>Prendre une photo</Text>
+                <Text style={[styles.mediaButtonSubtext, { color: theme.textTertiary }]}>Utilisez votre caméra</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.mediaButton, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                style={[styles.mediaButton, { backgroundColor: theme.card }]}
                 onPress={pickImage}
               >
-                <Ionicons name="images" size={48} color={theme.primary} />
+                <View style={[styles.mediaIconContainer, { backgroundColor: theme.secondaryMuted }]}>
+                  <Ionicons name="images" size={32} color={theme.secondary} />
+                </View>
                 <Text style={[styles.mediaButtonText, { color: theme.text }]}>Galerie</Text>
+                <Text style={[styles.mediaButtonSubtext, { color: theme.textTertiary }]}>Choisissez une photo</Text>
               </TouchableOpacity>
             </View>
           )}
 
-          <View style={styles.descriptionContainer}>
-            <Text style={[styles.label, { color: theme.text }]}>Description (optionnel)</Text>
+          <View style={[styles.descriptionCard, { backgroundColor: theme.card }]}>
+            <Text style={[styles.label, { color: theme.textSecondary }]}>DESCRIPTION</Text>
             <TextInput
               style={[
                 styles.descriptionInput,
-                { backgroundColor: theme.surface, color: theme.text, borderColor: theme.border },
+                { backgroundColor: theme.surfaceVariant, color: theme.text },
               ]}
-              placeholder="Ajoutez une description..."
+              placeholder="Ajoutez une description... (optionnel)"
               placeholderTextColor={theme.textTertiary}
               multiline
               maxLength={200}
@@ -162,15 +173,15 @@ export default function CreateDropScreen() {
             </Text>
           </View>
 
-          <View style={styles.infoBox}>
-            <Ionicons name="information-circle" size={24} color={theme.primary} />
+          <View style={[styles.infoBox, { backgroundColor: theme.primaryMuted }]}>
+            <Ionicons name="information-circle" size={22} color={theme.primary} />
             <Text style={[styles.infoText, { color: theme.textSecondary }]}>
               Votre Drop sera flouté jusqu'à la révélation de dimanche 20h. Seuls vos amis pourront le voir.
             </Text>
           </View>
 
           <Button
-            title="Publier le Drop"
+            title={media ? "Publier le Drop" : "Sélectionnez une photo"}
             onPress={handleSubmit}
             loading={loading}
             disabled={!media}
@@ -191,7 +202,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
+    padding: 20,
     paddingBottom: 100,
   },
   header: {
@@ -199,18 +210,19 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: '800',
+    letterSpacing: -0.5,
   },
   headerSubtitle: {
-    fontSize: 16,
+    fontSize: 15,
     marginTop: 4,
   },
   previewContainer: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: 'hidden',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   preview: {
     width: '100%',
@@ -225,53 +237,77 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 2,
+  },
+  lockedOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  lockedText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
   mediaButtons: {
     flexDirection: 'row',
-    gap: 16,
-    marginBottom: 24,
+    gap: 12,
+    marginBottom: 20,
   },
   mediaButton: {
     flex: 1,
-    aspectRatio: 1,
-    borderRadius: 16,
+    padding: 20,
+    borderRadius: 20,
+    alignItems: 'center',
+  },
+  mediaIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderStyle: 'dashed',
+    marginBottom: 12,
   },
   mediaButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginTop: 8,
+    fontSize: 15,
+    fontWeight: '600',
   },
-  descriptionContainer: {
-    marginBottom: 24,
+  mediaButtonSubtext: {
+    fontSize: 13,
+    marginTop: 4,
+  },
+  descriptionCard: {
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
   },
   label: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 10,
+    letterSpacing: 0.5,
   },
   descriptionInput: {
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
     fontSize: 16,
     minHeight: 100,
     textAlignVertical: 'top',
-    borderWidth: 1,
   },
   charCount: {
     fontSize: 12,
     textAlign: 'right',
-    marginTop: 4,
+    marginTop: 8,
   },
   infoBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     padding: 16,
-    borderRadius: 12,
-    backgroundColor: 'rgba(108, 92, 231, 0.1)',
+    borderRadius: 14,
     marginBottom: 24,
     gap: 12,
   },

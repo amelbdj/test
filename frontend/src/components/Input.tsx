@@ -18,6 +18,7 @@ export const Input: React.FC<InputProps> = ({
   rightIcon,
   onRightIconPress,
   secureTextEntry,
+  style,
   ...props
 }) => {
   const theme = useTheme();
@@ -26,18 +27,19 @@ export const Input: React.FC<InputProps> = ({
 
   return (
     <View style={styles.container}>
-      {label && <Text style={[styles.label, { color: theme.text }]}>{label}</Text>}
+      {label && <Text style={[styles.label, { color: theme.textSecondary }]}>{label}</Text>}
       <View
         style={[
           styles.inputContainer,
           {
-            backgroundColor: theme.surface,
-            borderColor: error ? theme.error : isFocused ? theme.primary : theme.border,
+            backgroundColor: theme.surfaceVariant,
+            borderColor: error ? theme.error : isFocused ? theme.primary : 'transparent',
+            borderWidth: isFocused || error ? 2 : 0,
           },
         ]}
       >
         {icon && (
-          <Ionicons name={icon} size={20} color={theme.textTertiary} style={styles.leftIcon} />
+          <Ionicons name={icon} size={20} color={isFocused ? theme.primary : theme.textTertiary} style={styles.leftIcon} />
         )}
         <TextInput
           {...props}
@@ -47,6 +49,7 @@ export const Input: React.FC<InputProps> = ({
             { color: theme.text },
             icon && styles.inputWithLeftIcon,
             (rightIcon || secureTextEntry) && styles.inputWithRightIcon,
+            style,
           ]}
           placeholderTextColor={theme.textTertiary}
           onFocus={() => setIsFocused(true)}
@@ -80,22 +83,23 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 13,
+    fontWeight: '600',
     marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 12,
-    minHeight: 48,
+    borderRadius: 14,
+    minHeight: 52,
   },
   input: {
     flex: 1,
     fontSize: 16,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
   },
   inputWithLeftIcon: {
     paddingLeft: 8,
@@ -107,10 +111,10 @@ const styles = StyleSheet.create({
     marginLeft: 16,
   },
   rightIcon: {
-    padding: 12,
+    padding: 14,
   },
   error: {
     fontSize: 12,
-    marginTop: 4,
+    marginTop: 6,
   },
 });

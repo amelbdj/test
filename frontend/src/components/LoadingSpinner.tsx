@@ -29,7 +29,7 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ message, fullScr
 
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
+    padding: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -39,7 +39,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   message: {
-    marginTop: 12,
-    fontSize: 14,
+    marginTop: 16,
+    fontSize: 15,
+    fontWeight: '500',
   },
 });

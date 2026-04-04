@@ -10,12 +10,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../src/hooks/useTheme';
 import { apiClient } from '../../src/api/client';
 import { Friend, FriendRequest, SearchUser } from '../../src/types';
 import { LoadingSpinner } from '../../src/components/LoadingSpinner';
 import { Avatar } from '../../src/components/Avatar';
-import { Button } from '../../src/components/Button';
 
 type TabType = 'friends' | 'requests' | 'search';
 
@@ -105,15 +105,15 @@ export default function FriendsScreen() {
   };
 
   const renderFriend = ({ item }: { item: Friend }) => (
-    <View style={[styles.friendCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-      <Avatar source={item.profile_picture} name={item.username} size={50} />
+    <View style={[styles.friendCard, { backgroundColor: theme.card }]}>
+      <Avatar source={item.profile_picture} name={item.username} size={52} />
       <View style={styles.friendInfo}>
         <Text style={[styles.friendName, { color: theme.text }]}>{item.username}</Text>
         {item.streak > 0 && (
-          <View style={styles.streakContainer}>
+          <View style={[styles.streakBadge, { backgroundColor: theme.streakMuted }]}>
             <Text style={styles.streakEmoji}>🔥</Text>
-            <Text style={[styles.streakText, { color: theme.textSecondary }]}>
-              {item.streak} jours
+            <Text style={[styles.streakText, { color: theme.streak }]}>
+              {item.streak}
             </Text>
           </View>
         )}
@@ -122,44 +122,56 @@ export default function FriendsScreen() {
   );
 
   const renderRequest = ({ item }: { item: FriendRequest }) => (
-    <View style={[styles.requestCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-      <Avatar source={item.from_profile_picture} name={item.from_username} size={50} />
+    <View style={[styles.requestCard, { backgroundColor: theme.card }]}>
+      <Avatar source={item.from_profile_picture} name={item.from_username} size={52} />
       <View style={styles.requestInfo}>
         <Text style={[styles.friendName, { color: theme.text }]}>{item.from_username}</Text>
-        <View style={styles.requestActions}>
-          <TouchableOpacity
-            style={[styles.acceptButton, { backgroundColor: theme.success }]}
-            onPress={() => handleAcceptRequest(item.id)}
-          >
-            <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.rejectButton, { backgroundColor: theme.error }]}
-            onPress={() => handleRejectRequest(item.id)}
-          >
-            <Ionicons name="close" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
+        <Text style={[styles.requestLabel, { color: theme.textSecondary }]}>Veut être votre ami</Text>
+      </View>
+      <View style={styles.requestActions}>
+        <TouchableOpacity
+          style={[styles.acceptButton, { backgroundColor: theme.successMuted }]}
+          onPress={() => handleAcceptRequest(item.id)}
+        >
+          <Ionicons name="checkmark" size={20} color={theme.success} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.rejectButton, { backgroundColor: theme.errorMuted }]}
+          onPress={() => handleRejectRequest(item.id)}
+        >
+          <Ionicons name="close" size={20} color={theme.error} />
+        </TouchableOpacity>
       </View>
     </View>
   );
 
   const renderSearchResult = ({ item }: { item: SearchUser }) => (
-    <View style={[styles.friendCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-      <Avatar source={item.profile_picture} name={item.username} size={50} />
+    <View style={[styles.friendCard, { backgroundColor: theme.card }]}>
+      <Avatar source={item.profile_picture} name={item.username} size={52} />
       <View style={styles.friendInfo}>
         <Text style={[styles.friendName, { color: theme.text }]}>{item.username}</Text>
         {item.is_friend ? (
-          <Text style={[styles.statusText, { color: theme.success }]}>Ami</Text>
+          <View style={[styles.statusBadge, { backgroundColor: theme.successMuted }]}>
+            <Text style={[styles.statusText, { color: theme.success }]}>Ami</Text>
+          </View>
         ) : item.request_pending ? (
-          <Text style={[styles.statusText, { color: theme.textTertiary }]}>Demande envoyée</Text>
+          <View style={[styles.statusBadge, { backgroundColor: theme.surfaceVariant }]}>
+            <Text style={[styles.statusText, { color: theme.textTertiary }]}>En attente</Text>
+          </View>
         ) : (
           <TouchableOpacity
-            style={[styles.addButton, { backgroundColor: theme.primary }]}
+            style={styles.addButton}
             onPress={() => handleSendRequest(item.id)}
           >
-            <Ionicons name="person-add" size={16} color="#FFFFFF" />
-            <Text style={styles.addButtonText}>Ajouter</Text>
+            <LinearGradient
+              colors={[theme.gradientStart, theme.gradientEnd]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.addButtonGradient}
+            >
+              <Ionicons name="person-add" size={16} color="#FFFFFF" />
+              <Text style={styles.addButtonText}>Ajouter</Text>
+            </LinearGradient>
           </TouchableOpacity>
         )}
       </View>
@@ -171,18 +183,18 @@ export default function FriendsScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: theme.text }]}>Amis</Text>
       </View>
 
-      <View style={styles.tabs}>
+      <View style={[styles.tabs, { backgroundColor: theme.card }]}>
         {(['friends', 'requests', 'search'] as TabType[]).map((tab) => (
           <TouchableOpacity
             key={tab}
             style={[
               styles.tab,
-              activeTab === tab && { borderBottomColor: theme.primary, borderBottomWidth: 2 },
+              activeTab === tab && [styles.activeTab, { backgroundColor: theme.primaryMuted }],
             ]}
             onPress={() => setActiveTab(tab)}
           >
@@ -192,14 +204,18 @@ export default function FriendsScreen() {
                 { color: activeTab === tab ? theme.primary : theme.textSecondary },
               ]}
             >
-              {tab === 'friends' ? `Amis (${friends.length})` : tab === 'requests' ? `Demandes (${requests.length})` : 'Rechercher'}
+              {tab === 'friends' 
+                ? `Amis (${friends.length})` 
+                : tab === 'requests' 
+                  ? `Demandes${requests.length > 0 ? ` (${requests.length})` : ''}`
+                  : 'Rechercher'}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
       {activeTab === 'search' && (
-        <View style={[styles.searchContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <View style={[styles.searchContainer, { backgroundColor: theme.card }]}>
           <Ionicons name="search" size={20} color={theme.textTertiary} />
           <TextInput
             style={[styles.searchInput, { color: theme.text }]}
@@ -230,10 +246,13 @@ export default function FriendsScreen() {
               tintColor={theme.primary}
             />
           }
+          showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Ionicons name="people-outline" size={64} color={theme.textTertiary} />
-              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+              <View style={[styles.emptyIconContainer, { backgroundColor: theme.primaryMuted }]}>
+                <Ionicons name="people-outline" size={40} color={theme.primary} />
+              </View>
+              <Text style={[styles.emptyText, { color: theme.text }]}>
                 Aucun ami pour le moment
               </Text>
               <Text style={[styles.emptySubtext, { color: theme.textTertiary }]}>
@@ -257,10 +276,13 @@ export default function FriendsScreen() {
               tintColor={theme.primary}
             />
           }
+          showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Ionicons name="mail-outline" size={64} color={theme.textTertiary} />
-              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+              <View style={[styles.emptyIconContainer, { backgroundColor: theme.primaryMuted }]}>
+                <Ionicons name="mail-outline" size={40} color={theme.primary} />
+              </View>
+              <Text style={[styles.emptyText, { color: theme.text }]}>
                 Aucune demande en attente
               </Text>
             </View>
@@ -274,6 +296,7 @@ export default function FriendsScreen() {
           keyExtractor={(item) => item.id}
           renderItem={renderSearchResult}
           contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             searchQuery.length >= 2 ? (
               searching ? (
@@ -287,8 +310,13 @@ export default function FriendsScreen() {
               )
             ) : (
               <View style={styles.emptyContainer}>
-                <Ionicons name="search" size={64} color={theme.textTertiary} />
-                <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+                <View style={[styles.emptyIconContainer, { backgroundColor: theme.primaryMuted }]}>
+                  <Ionicons name="search" size={40} color={theme.primary} />
+                </View>
+                <Text style={[styles.emptyText, { color: theme.text }]}>
+                  Rechercher un utilisateur
+                </Text>
+                <Text style={[styles.emptySubtext, { color: theme.textTertiary }]}>
                   Tapez au moins 2 caractères
                 </Text>
               </View>
@@ -305,22 +333,29 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 12,
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: '800',
+    letterSpacing: -0.5,
   },
   tabs: {
     flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    marginHorizontal: 20,
+    marginBottom: 16,
+    padding: 4,
+    borderRadius: 14,
+    gap: 4,
   },
   tab: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
     alignItems: 'center',
+    borderRadius: 10,
+  },
+  activeTab: {
   },
   tabText: {
     fontSize: 14,
@@ -329,32 +364,31 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    margin: 16,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    height: 48,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    height: 52,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: 10,
     fontSize: 16,
   },
   listContent: {
-    padding: 16,
+    paddingHorizontal: 20,
     paddingBottom: 100,
   },
   friendCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
+    padding: 14,
+    borderRadius: 16,
+    marginBottom: 10,
   },
   friendInfo: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -363,61 +397,73 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  streakContainer: {
+  streakBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
   },
   streakEmoji: {
-    fontSize: 16,
+    fontSize: 14,
   },
   streakText: {
     fontSize: 14,
-    marginLeft: 4,
+    fontWeight: '700',
   },
   requestCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
+    padding: 14,
+    borderRadius: 16,
+    marginBottom: 10,
   },
   requestInfo: {
     flex: 1,
-    marginLeft: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    marginLeft: 14,
+  },
+  requestLabel: {
+    fontSize: 13,
+    marginTop: 2,
   },
   requestActions: {
     flexDirection: 'row',
     gap: 8,
   },
   acceptButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   rejectButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  statusText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  statusBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
-    gap: 4,
+    borderRadius: 10,
+  },
+  statusText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  addButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  addButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    gap: 6,
   },
   addButtonText: {
     color: '#FFFFFF',
@@ -428,10 +474,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 60,
   },
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
-    marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,

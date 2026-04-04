@@ -39,7 +39,7 @@ export default function RootLayout() {
 
   if (!isReady || isLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: theme.background }}>
+      <View style={{ flex: 1, backgroundColor: '#0F0F14' }}>
         <LoadingSpinner fullScreen message="Chargement..." />
       </View>
     );
@@ -52,6 +52,7 @@ export default function RootLayout() {
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: theme.background },
+          animation: 'slide_from_right',
         }}
       >
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />

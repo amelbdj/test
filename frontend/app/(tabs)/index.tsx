@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/hooks/useTheme';
 import { apiClient } from '../../src/api/client';
@@ -95,14 +96,17 @@ export default function FeedScreen() {
     });
 
     return (
-      <View style={[styles.dropCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+      <View style={[styles.dropCard, { backgroundColor: theme.card }]}>
         <View style={styles.dropHeader}>
           <TouchableOpacity style={styles.userInfo}>
-            <Avatar source={item.user_profile_picture} name={item.username} size={40} />
+            <Avatar source={item.user_profile_picture} name={item.username} size={44} />
             <View style={styles.userTextContainer}>
               <Text style={[styles.username, { color: theme.text }]}>{item.username}</Text>
               <Text style={[styles.timeAgo, { color: theme.textTertiary }]}>{timeAgo}</Text>
             </View>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.moreButton, { backgroundColor: theme.surfaceVariant }]}>
+            <Ionicons name="ellipsis-horizontal" size={18} color={theme.textSecondary} />
           </TouchableOpacity>
         </View>
 
@@ -120,24 +124,25 @@ export default function FeedScreen() {
               </View>
             )
           ) : (
-            <View style={[styles.blurredContainer, { backgroundColor: theme.surfaceVariant }]}>
+            <LinearGradient
+              colors={[theme.surfaceVariant, theme.surface]}
+              style={styles.blurredContainer}
+            >
               <View style={styles.blurredOverlay}>
-                <Ionicons name="lock-closed" size={48} color={theme.primary} />
+                <View style={[styles.lockIconContainer, { backgroundColor: theme.primaryMuted }]}>
+                  <Ionicons name="lock-closed" size={32} color={theme.primary} />
+                </View>
                 <Text style={[styles.blurredText, { color: theme.text }]}>Révélation dans</Text>
                 <Text style={[styles.countdownText, { color: theme.primary }]}>
                   {formatTimeUntilReveal()}
                 </Text>
               </View>
-            </View>
+            </LinearGradient>
           )}
         </View>
 
         {item.is_revealed && (
           <>
-            {item.description ? (
-              <Text style={[styles.description, { color: theme.text }]}>{item.description}</Text>
-            ) : null}
-
             <View style={styles.actions}>
               <TouchableOpacity
                 style={styles.actionButton}
@@ -145,8 +150,8 @@ export default function FeedScreen() {
               >
                 <Ionicons
                   name={item.liked_by_user ? 'heart' : 'heart-outline'}
-                  size={24}
-                  color={item.liked_by_user ? theme.error : theme.text}
+                  size={26}
+                  color={item.liked_by_user ? theme.like : theme.text}
                 />
                 <Text style={[styles.actionText, { color: theme.text }]}>
                   {item.likes_count}
@@ -157,12 +162,27 @@ export default function FeedScreen() {
                 style={styles.actionButton}
                 onPress={() => router.push(`/drop/${item.id}`)}
               >
-                <Ionicons name="chatbubble-outline" size={22} color={theme.text} />
+                <Ionicons name="chatbubble-outline" size={24} color={theme.text} />
                 <Text style={[styles.actionText, { color: theme.text }]}>
                   {item.comments_count}
                 </Text>
               </TouchableOpacity>
+
+              <TouchableOpacity style={styles.actionButton}>
+                <Ionicons name="paper-plane-outline" size={24} color={theme.text} />
+              </TouchableOpacity>
             </View>
+
+            {item.description ? (
+              <View style={styles.descriptionContainer}>
+                <Text style={[styles.descriptionUsername, { color: theme.text }]}>
+                  {item.username}
+                </Text>
+                <Text style={[styles.description, { color: theme.textSecondary }]}>
+                  {item.description}
+                </Text>
+              </View>
+            ) : null}
           </>
         )}
       </View>
@@ -174,21 +194,40 @@ export default function FeedScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: theme.text }]}>Dropa</Text>
-        <TouchableOpacity onPress={() => router.push('/notifications')}>
-          <Ionicons name="notifications-outline" size={24} color={theme.text} />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity 
+            style={[styles.iconButton, { backgroundColor: theme.surfaceVariant }]}
+            onPress={() => router.push('/messages')}
+          >
+            <Ionicons name="chatbubbles-outline" size={22} color={theme.text} />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.iconButton, { backgroundColor: theme.surfaceVariant }]}
+            onPress={() => router.push('/notifications')}
+          >
+            <Ionicons name="notifications-outline" size={22} color={theme.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {revealStatus && !revealStatus.is_reveal_time && (
-        <View style={[styles.revealBanner, { backgroundColor: theme.primary }]}>
-          <Ionicons name="time-outline" size={20} color="#FFFFFF" />
+        <LinearGradient
+          colors={[theme.gradientStart, theme.gradientEnd]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.revealBanner}
+        >
+          <Ionicons name="time-outline" size={18} color="#FFFFFF" />
           <Text style={styles.revealBannerText}>
-            Prochaine révélation: Dimanche 20h ({formatTimeUntilReveal()})
+            Prochaine révélation: Dimanche 20h
           </Text>
-        </View>
+          <View style={styles.countdownBadge}>
+            <Text style={styles.countdownBadgeText}>{formatTimeUntilReveal()}</Text>
+          </View>
+        </LinearGradient>
       )}
 
       <FlatList
@@ -203,10 +242,13 @@ export default function FeedScreen() {
             tintColor={theme.primary}
           />
         }
+        showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons name="images-outline" size={64} color={theme.textTertiary} />
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+            <View style={[styles.emptyIconContainer, { backgroundColor: theme.primaryMuted }]}>
+              <Ionicons name="images-outline" size={48} color={theme.primary} />
+            </View>
+            <Text style={[styles.emptyText, { color: theme.text }]}>
               Aucun Drop pour le moment
             </Text>
             <Text style={[styles.emptySubtext, { color: theme.textTertiary }]}>
@@ -227,19 +269,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 12,
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   revealBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    marginHorizontal: 20,
+    marginBottom: 8,
+    borderRadius: 14,
     gap: 8,
   },
   revealBannerText: {
@@ -247,21 +304,31 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
+  countdownBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  countdownBadgeText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 13,
+  },
   listContent: {
-    padding: 16,
+    padding: 20,
     paddingBottom: 100,
   },
   dropCard: {
-    borderRadius: 16,
-    marginBottom: 16,
+    borderRadius: 20,
+    marginBottom: 20,
     overflow: 'hidden',
-    borderWidth: 1,
   },
   dropHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 12,
+    padding: 16,
   },
   userInfo: {
     flexDirection: 'row',
@@ -272,11 +339,18 @@ const styles = StyleSheet.create({
   },
   username: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   timeAgo: {
-    fontSize: 12,
+    fontSize: 13,
     marginTop: 2,
+  },
+  moreButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   mediaContainer: {
     width: '100%',
@@ -301,25 +375,27 @@ const styles = StyleSheet.create({
   blurredOverlay: {
     alignItems: 'center',
   },
+  lockIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
   blurredText: {
-    marginTop: 12,
     fontSize: 16,
     fontWeight: '500',
   },
   countdownText: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '800',
     marginTop: 4,
-  },
-  description: {
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    fontSize: 14,
-    lineHeight: 20,
   },
   actions: {
     flexDirection: 'row',
-    padding: 12,
+    padding: 16,
+    paddingTop: 12,
     gap: 20,
   },
   actionButton: {
@@ -328,22 +404,42 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   actionText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  descriptionContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  descriptionUsername: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  description: {
+    fontSize: 14,
+    lineHeight: 20,
   },
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 100,
+    paddingTop: 80,
+  },
+  emptyIconContainer: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
   },
   emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginTop: 16,
+    fontSize: 20,
+    fontWeight: '700',
   },
   emptySubtext: {
-    fontSize: 14,
+    fontSize: 15,
     marginTop: 8,
     textAlign: 'center',
   },
