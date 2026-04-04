@@ -1,9 +1,60 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet, Platform, Animated } from 'react-native';
 import { useTheme } from '../../src/hooks/useTheme';
-import { BlurView } from 'expo-blur';
+
+interface AnimatedTabIconProps {
+  name: keyof typeof Ionicons.glyphMap;
+  outlineName: keyof typeof Ionicons.glyphMap;
+  color: string;
+  focused: boolean;
+  size?: number;
+  badge?: number;
+}
+
+function AnimatedTabIcon({ name, outlineName, color, focused, size = 24, badge }: AnimatedTabIconProps) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (focused) {
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 1.2,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 4,
+          tension: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [focused]);
+
+  return (
+    <Animated.View style={[styles.iconWrapper, { transform: [{ scale: scaleAnim }] }]}>
+      <Ionicons
+        name={focused ? name : outlineName}
+        size={size}
+        color={color}
+      />
+      {badge && badge > 0 ? (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{badge > 9 ? '9+' : badge}</Text>
+        </View>
+      ) : null}
+    </Animated.View>
+  );
+}
 
 export default function TabsLayout() {
   const theme = useTheme();
@@ -18,7 +69,7 @@ export default function TabsLayout() {
           borderTopWidth: 0.5,
           height: Platform.OS === 'ios' ? 88 : 70,
           paddingBottom: Platform.OS === 'ios' ? 28 : 12,
-          paddingTop: 12,
+          paddingTop: 8,
           elevation: 0,
           shadowOpacity: 0,
         },
@@ -27,11 +78,12 @@ export default function TabsLayout() {
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '600',
-          marginTop: 4,
+          marginTop: 2,
         },
         tabBarIconStyle: {
           marginTop: 2,
         },
+        tabBarHideOnKeyboard: true,
       }}
     >
       <Tabs.Screen
@@ -39,10 +91,11 @@ export default function TabsLayout() {
         options={{
           title: 'Feed',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons 
-              name={focused ? 'home' : 'home-outline'} 
-              size={24} 
-              color={color} 
+            <AnimatedTabIcon
+              name="home"
+              outlineName="home-outline"
+              color={color}
+              focused={focused}
             />
           ),
         }}
@@ -52,10 +105,11 @@ export default function TabsLayout() {
         options={{
           title: 'Amis',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons 
-              name={focused ? 'people' : 'people-outline'} 
-              size={24} 
-              color={color} 
+            <AnimatedTabIcon
+              name="people"
+              outlineName="people-outline"
+              color={color}
+              focused={focused}
             />
           ),
         }}
@@ -77,10 +131,11 @@ export default function TabsLayout() {
         options={{
           title: 'Calendrier',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons 
-              name={focused ? 'calendar' : 'calendar-outline'} 
-              size={24} 
-              color={color} 
+            <AnimatedTabIcon
+              name="calendar"
+              outlineName="calendar-outline"
+              color={color}
+              focused={focused}
             />
           ),
         }}
@@ -90,10 +145,25 @@ export default function TabsLayout() {
         options={{
           title: 'Profil',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons 
-              name={focused ? 'person' : 'person-outline'} 
-              size={24} 
-              color={color} 
+            <AnimatedTabIcon
+              name="person"
+              outlineName="person-outline"
+              color={color}
+              focused={focused}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="messages"
+        options={{
+          title: 'Messages',
+          tabBarIcon: ({ color, focused }) => (
+            <AnimatedTabIcon
+              name="chatbubbles"
+              outlineName="chatbubbles-outline"
+              color={color}
+              focused={focused}
             />
           ),
         }}
@@ -103,6 +173,29 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
+  iconWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 28,
+    height: 28,
+  },
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#FF3B5C',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
+  },
   createButton: {
     width: 56,
     height: 56,
