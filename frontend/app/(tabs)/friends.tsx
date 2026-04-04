@@ -14,8 +14,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../src/hooks/useTheme';
 import { apiClient } from '../../src/api/client';
 import { Friend, FriendRequest, SearchUser } from '../../src/types';
-import { LoadingSpinner } from '../../src/components/LoadingSpinner';
 import { Avatar } from '../../src/components/Avatar';
+import { FriendCardSkeleton } from '../../src/components/Skeleton';
+import { AnimatedPressable, FadeInView, StaggerItem } from '../../src/components/Animations';
+import { LoadingSpinner } from '../../src/components/LoadingSpinner';
 
 type TabType = 'friends' | 'requests' | 'search';
 
@@ -104,82 +106,105 @@ export default function FriendsScreen() {
     }
   };
 
-  const renderFriend = ({ item }: { item: Friend }) => (
-    <View style={[styles.friendCard, { backgroundColor: theme.card }]}>
-      <Avatar source={item.profile_picture} name={item.username} size={52} />
-      <View style={styles.friendInfo}>
-        <Text style={[styles.friendName, { color: theme.text }]}>{item.username}</Text>
-        {item.streak > 0 && (
-          <View style={[styles.streakBadge, { backgroundColor: theme.streakMuted }]}>
-            <Text style={styles.streakEmoji}>🔥</Text>
-            <Text style={[styles.streakText, { color: theme.streak }]}>
-              {item.streak}
-            </Text>
-          </View>
-        )}
+  const renderFriend = ({ item, index }: { item: Friend; index: number }) => (
+    <StaggerItem index={index}>
+      <View style={[styles.friendCard, { backgroundColor: theme.card }]}>
+        <Avatar source={item.profile_picture} name={item.username} size={52} />
+        <View style={styles.friendInfo}>
+          <Text style={[styles.friendName, { color: theme.text }]}>{item.username}</Text>
+          {item.streak > 0 && (
+            <View style={[styles.streakBadge, { backgroundColor: theme.streakMuted }]}>
+              <Text style={styles.streakEmoji}>🔥</Text>
+              <Text style={[styles.streakText, { color: theme.streak }]}>
+                {item.streak}
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
-    </View>
+    </StaggerItem>
   );
 
-  const renderRequest = ({ item }: { item: FriendRequest }) => (
-    <View style={[styles.requestCard, { backgroundColor: theme.card }]}>
-      <Avatar source={item.from_profile_picture} name={item.from_username} size={52} />
-      <View style={styles.requestInfo}>
-        <Text style={[styles.friendName, { color: theme.text }]}>{item.from_username}</Text>
-        <Text style={[styles.requestLabel, { color: theme.textSecondary }]}>Veut être votre ami</Text>
-      </View>
-      <View style={styles.requestActions}>
-        <TouchableOpacity
-          style={[styles.acceptButton, { backgroundColor: theme.successMuted }]}
-          onPress={() => handleAcceptRequest(item.id)}
-        >
-          <Ionicons name="checkmark" size={20} color={theme.success} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.rejectButton, { backgroundColor: theme.errorMuted }]}
-          onPress={() => handleRejectRequest(item.id)}
-        >
-          <Ionicons name="close" size={20} color={theme.error} />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  const renderSearchResult = ({ item }: { item: SearchUser }) => (
-    <View style={[styles.friendCard, { backgroundColor: theme.card }]}>
-      <Avatar source={item.profile_picture} name={item.username} size={52} />
-      <View style={styles.friendInfo}>
-        <Text style={[styles.friendName, { color: theme.text }]}>{item.username}</Text>
-        {item.is_friend ? (
-          <View style={[styles.statusBadge, { backgroundColor: theme.successMuted }]}>
-            <Text style={[styles.statusText, { color: theme.success }]}>Ami</Text>
-          </View>
-        ) : item.request_pending ? (
-          <View style={[styles.statusBadge, { backgroundColor: theme.surfaceVariant }]}>
-            <Text style={[styles.statusText, { color: theme.textTertiary }]}>En attente</Text>
-          </View>
-        ) : (
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => handleSendRequest(item.id)}
+  const renderRequest = ({ item, index }: { item: FriendRequest; index: number }) => (
+    <StaggerItem index={index}>
+      <View style={[styles.requestCard, { backgroundColor: theme.card }]}>
+        <Avatar source={item.from_profile_picture} name={item.from_username} size={52} />
+        <View style={styles.requestInfo}>
+          <Text style={[styles.friendName, { color: theme.text }]}>{item.from_username}</Text>
+          <Text style={[styles.requestLabel, { color: theme.textSecondary }]}>Veut être votre ami</Text>
+        </View>
+        <View style={styles.requestActions}>
+          <AnimatedPressable
+            style={[styles.acceptButton, { backgroundColor: theme.successMuted }]}
+            onPress={() => handleAcceptRequest(item.id)}
+            haptic="medium"
+            scaleValue={0.9}
           >
-            <LinearGradient
-              colors={[theme.gradientStart, theme.gradientEnd]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.addButtonGradient}
-            >
-              <Ionicons name="person-add" size={16} color="#FFFFFF" />
-              <Text style={styles.addButtonText}>Ajouter</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        )}
+            <Ionicons name="checkmark" size={20} color={theme.success} />
+          </AnimatedPressable>
+          <AnimatedPressable
+            style={[styles.rejectButton, { backgroundColor: theme.errorMuted }]}
+            onPress={() => handleRejectRequest(item.id)}
+            haptic="light"
+            scaleValue={0.9}
+          >
+            <Ionicons name="close" size={20} color={theme.error} />
+          </AnimatedPressable>
+        </View>
       </View>
-    </View>
+    </StaggerItem>
+  );
+
+  const renderSearchResult = ({ item, index }: { item: SearchUser; index: number }) => (
+    <StaggerItem index={index}>
+      <View style={[styles.friendCard, { backgroundColor: theme.card }]}>
+        <Avatar source={item.profile_picture} name={item.username} size={52} />
+        <View style={styles.friendInfo}>
+          <Text style={[styles.friendName, { color: theme.text }]}>{item.username}</Text>
+          {item.is_friend ? (
+            <View style={[styles.statusBadge, { backgroundColor: theme.successMuted }]}>
+              <Text style={[styles.statusText, { color: theme.success }]}>Ami</Text>
+            </View>
+          ) : item.request_pending ? (
+            <View style={[styles.statusBadge, { backgroundColor: theme.surfaceVariant }]}>
+              <Text style={[styles.statusText, { color: theme.textTertiary }]}>En attente</Text>
+            </View>
+          ) : (
+            <AnimatedPressable
+              style={styles.addButton}
+              onPress={() => handleSendRequest(item.id)}
+              haptic="medium"
+            >
+              <LinearGradient
+                colors={[theme.gradientStart, theme.gradientEnd]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.addButtonGradient}
+              >
+                <Ionicons name="person-add" size={16} color="#FFFFFF" />
+                <Text style={styles.addButtonText}>Ajouter</Text>
+              </LinearGradient>
+            </AnimatedPressable>
+          )}
+        </View>
+      </View>
+    </StaggerItem>
   );
 
   if (loading) {
-    return <LoadingSpinner fullScreen message="Chargement..." />;
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Amis</Text>
+        </View>
+        <View style={styles.listContent}>
+          <FriendCardSkeleton />
+          <FriendCardSkeleton />
+          <FriendCardSkeleton />
+          <FriendCardSkeleton />
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (

@@ -8,7 +8,6 @@ import {
   Image,
   Alert,
   RefreshControl,
-  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,7 +19,8 @@ import { useAuthStore } from '../../src/store/authStore';
 import { apiClient } from '../../src/api/client';
 import { Drop } from '../../src/types';
 import { Avatar } from '../../src/components/Avatar';
-import { LoadingSpinner } from '../../src/components/LoadingSpinner';
+import { ProfileSkeleton } from '../../src/components/Skeleton';
+import { AnimatedPressable, FadeInView, StaggerItem } from '../../src/components/Animations';
 
 export default function ProfileScreen() {
   const theme = useTheme();
@@ -98,34 +98,12 @@ export default function ProfileScreen() {
     );
   };
 
-  const renderDropItem = ({ item }: { item: Drop }) => (
-    <TouchableOpacity
-      style={[styles.dropThumbnail, { backgroundColor: theme.surfaceVariant }]}
-      onPress={() => router.push(`/drop/${item.id}`)}
-      activeOpacity={0.8}
-    >
-      {item.is_revealed && item.media_data ? (
-        <Image
-          source={{
-            uri: item.media_data.startsWith('data:')
-              ? item.media_data
-              : `data:image/jpeg;base64,${item.media_data}`,
-          }}
-          style={styles.dropImage}
-        />
-      ) : (
-        <LinearGradient
-          colors={[theme.surfaceVariant, theme.surface]}
-          style={styles.lockedDrop}
-        >
-          <Ionicons name="lock-closed" size={22} color={theme.primary} />
-        </LinearGradient>
-      )}
-    </TouchableOpacity>
-  );
-
   if (!user || loading) {
-    return <LoadingSpinner fullScreen />;
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+        <ProfileSkeleton />
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -140,118 +118,128 @@ export default function ProfileScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <View style={styles.placeholder} />
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Profil</Text>
-          <TouchableOpacity 
-            onPress={() => router.push('/settings')} 
-            style={[styles.settingsButton, { backgroundColor: theme.surfaceVariant }]}
-          >
-            <Ionicons name="settings-outline" size={22} color={theme.text} />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.profileSection}>
-          <TouchableOpacity onPress={handleChangePhoto} style={styles.avatarContainer}>
-            <Avatar source={user.profile_picture} name={user.username} size={100} showBorder />
-            <View style={[styles.editBadge, { backgroundColor: theme.primary }]}>
-              <Ionicons name="camera" size={14} color="#FFFFFF" />
-            </View>
-          </TouchableOpacity>
-
-          <Text style={[styles.username, { color: theme.text }]}>@{user.username}</Text>
-          
-          {user.bio ? (
-            <Text style={[styles.bio, { color: theme.textSecondary }]}>{user.bio}</Text>
-          ) : (
-            <TouchableOpacity onPress={() => router.push('/edit-profile')}>
-              <Text style={[styles.addBio, { color: theme.primary }]}>+ Ajouter une bio</Text>
-            </TouchableOpacity>
-          )}
-
-          <View style={[styles.statsRow, { backgroundColor: theme.card }]}>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: theme.text }]}>{drops.length}</Text>
-              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Drops</Text>
-            </View>
-            <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: theme.text }]}>{user.friends_count}</Text>
-              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Amis</Text>
-            </View>
-            <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
-            <View style={styles.statItem}>
-              <View style={styles.streakContainer}>
-                <Text style={styles.streakEmoji}>🔥</Text>
-                <Text style={[styles.statValue, { color: theme.streak }]}>{user.streak}</Text>
-              </View>
-              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Streak</Text>
-            </View>
+        <FadeInView>
+          <View style={styles.header}>
+            <View style={styles.placeholder} />
+            <Text style={[styles.headerTitle, { color: theme.text }]}>Profil</Text>
+            <AnimatedPressable 
+              onPress={() => router.push('/settings')} 
+              style={[styles.settingsButton, { backgroundColor: theme.surfaceVariant }]}
+              scaleValue={0.9}
+            >
+              <Ionicons name="settings-outline" size={22} color={theme.text} />
+            </AnimatedPressable>
           </View>
+        </FadeInView>
 
-          <TouchableOpacity
-            style={[styles.editButton, { borderColor: theme.border }]}
-            onPress={() => router.push('/edit-profile')}
-          >
-            <Ionicons name="create-outline" size={18} color={theme.text} />
-            <Text style={[styles.editButtonText, { color: theme.text }]}>Modifier le profil</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.dropsSection}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Mes Drops</Text>
-          
-          {drops.length === 0 ? (
-            <View style={[styles.emptyDrops, { backgroundColor: theme.card }]}>
-              <View style={[styles.emptyIconContainer, { backgroundColor: theme.primaryMuted }]}>
-                <Ionicons name="images-outline" size={32} color={theme.primary} />
+        <FadeInView delay={100}>
+          <View style={styles.profileSection}>
+            <AnimatedPressable onPress={handleChangePhoto} style={styles.avatarContainer} scaleValue={0.95}>
+              <Avatar source={user.profile_picture} name={user.username} size={100} showBorder />
+              <View style={[styles.editBadge, { backgroundColor: theme.primary }]}>
+                <Ionicons name="camera" size={14} color="#FFFFFF" />
               </View>
-              <Text style={[styles.emptyText, { color: theme.text }]}>
-                Aucun Drop pour le moment
-              </Text>
-              <Text style={[styles.emptySubtext, { color: theme.textTertiary }]}>
-                Créez votre premier Drop !
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.dropsGrid}>
-              {drops.map((drop) => (
-                <TouchableOpacity
-                  key={drop.id}
-                  style={[styles.dropThumbnail, { backgroundColor: theme.surfaceVariant }]}
-                  onPress={() => router.push(`/drop/${drop.id}`)}
-                  activeOpacity={0.8}
-                >
-                  {drop.is_revealed && drop.media_data ? (
-                    <Image
-                      source={{
-                        uri: drop.media_data.startsWith('data:')
-                          ? drop.media_data
-                          : `data:image/jpeg;base64,${drop.media_data}`,
-                      }}
-                      style={styles.dropImage}
-                    />
-                  ) : (
-                    <LinearGradient
-                      colors={[theme.surfaceVariant, theme.surface]}
-                      style={styles.lockedDrop}
-                    >
-                      <Ionicons name="lock-closed" size={22} color={theme.primary} />
-                    </LinearGradient>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </View>
+            </AnimatedPressable>
 
-        <TouchableOpacity
+            <Text style={[styles.username, { color: theme.text }]}>@{user.username}</Text>
+            
+            {user.bio ? (
+              <Text style={[styles.bio, { color: theme.textSecondary }]}>{user.bio}</Text>
+            ) : (
+              <AnimatedPressable onPress={() => router.push('/edit-profile')} haptic="light">
+                <Text style={[styles.addBio, { color: theme.primary }]}>+ Ajouter une bio</Text>
+              </AnimatedPressable>
+            )}
+
+            <View style={[styles.statsRow, { backgroundColor: theme.card }]}>
+              <View style={styles.statItem}>
+                <Text style={[styles.statValue, { color: theme.text }]}>{drops.length}</Text>
+                <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Drops</Text>
+              </View>
+              <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
+              <View style={styles.statItem}>
+                <Text style={[styles.statValue, { color: theme.text }]}>{user.friends_count}</Text>
+                <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Amis</Text>
+              </View>
+              <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
+              <View style={styles.statItem}>
+                <View style={styles.streakContainer}>
+                  <Text style={styles.streakEmoji}>🔥</Text>
+                  <Text style={[styles.statValue, { color: theme.streak }]}>{user.streak}</Text>
+                </View>
+                <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Streak</Text>
+              </View>
+            </View>
+
+            <AnimatedPressable
+              style={[styles.editButton, { borderColor: theme.border }]}
+              onPress={() => router.push('/edit-profile')}
+              scaleValue={0.97}
+            >
+              <Ionicons name="create-outline" size={18} color={theme.text} />
+              <Text style={[styles.editButtonText, { color: theme.text }]}>Modifier le profil</Text>
+            </AnimatedPressable>
+          </View>
+        </FadeInView>
+
+        <FadeInView delay={200}>
+          <View style={styles.dropsSection}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Mes Drops</Text>
+            
+            {drops.length === 0 ? (
+              <View style={[styles.emptyDrops, { backgroundColor: theme.card }]}>
+                <View style={[styles.emptyIconContainer, { backgroundColor: theme.primaryMuted }]}>
+                  <Ionicons name="images-outline" size={32} color={theme.primary} />
+                </View>
+                <Text style={[styles.emptyText, { color: theme.text }]}>
+                  Aucun Drop pour le moment
+                </Text>
+                <Text style={[styles.emptySubtext, { color: theme.textTertiary }]}>
+                  Créez votre premier Drop !
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.dropsGrid}>
+                {drops.map((drop, index) => (
+                  <StaggerItem key={drop.id} index={index}>
+                    <AnimatedPressable
+                      style={[styles.dropThumbnail, { backgroundColor: theme.surfaceVariant }]}
+                      onPress={() => router.push(`/drop/${drop.id}`)}
+                      scaleValue={0.95}
+                    >
+                      {drop.is_revealed && drop.media_data ? (
+                        <Image
+                          source={{
+                            uri: drop.media_data.startsWith('data:')
+                              ? drop.media_data
+                              : `data:image/jpeg;base64,${drop.media_data}`,
+                          }}
+                          style={styles.dropImage}
+                        />
+                      ) : (
+                        <LinearGradient
+                          colors={[theme.surfaceVariant, theme.surface]}
+                          style={styles.lockedDrop}
+                        >
+                          <Ionicons name="lock-closed" size={22} color={theme.primary} />
+                        </LinearGradient>
+                      )}
+                    </AnimatedPressable>
+                  </StaggerItem>
+                ))}
+              </View>
+            )}
+          </View>
+        </FadeInView>
+
+        <AnimatedPressable
           style={[styles.logoutButton, { backgroundColor: theme.errorMuted }]}
           onPress={handleLogout}
+          haptic="medium"
         >
           <Ionicons name="log-out-outline" size={20} color={theme.error} />
           <Text style={[styles.logoutText, { color: theme.error }]}>Déconnexion</Text>
-        </TouchableOpacity>
+        </AnimatedPressable>
       </ScrollView>
     </SafeAreaView>
   );

@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Image,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,8 +17,11 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/hooks/useTheme';
 import { apiClient } from '../../src/api/client';
 import { Drop, RevealStatus } from '../../src/types';
-import { LoadingSpinner } from '../../src/components/LoadingSpinner';
 import { Avatar } from '../../src/components/Avatar';
+import { DropCardSkeleton } from '../../src/components/Skeleton';
+import { BlurredDrop } from '../../src/components/BlurredDrop';
+import { AnimatedPressable, AnimatedLikeButton, FadeInView, StaggerItem } from '../../src/components/Animations';
+import { RevealAnimation } from '../../src/components/RevealAnimation';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -30,6 +34,7 @@ export default function FeedScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [revealStatus, setRevealStatus] = useState<RevealStatus | null>(null);
+  const [showReveal, setShowReveal] = useState(false);
 
   const fetchFeed = async () => {
     try {
@@ -89,145 +94,164 @@ export default function FeedScreen() {
     return `${minutes}m`;
   };
 
-  const renderDrop = ({ item }: { item: Drop }) => {
+  const renderDrop = ({ item, index }: { item: Drop; index: number }) => {
     const timeAgo = formatDistanceToNow(new Date(item.created_at), {
       addSuffix: true,
       locale: fr,
     });
 
-    return (
-      <View style={[styles.dropCard, { backgroundColor: theme.card }]}>
-        <View style={styles.dropHeader}>
-          <TouchableOpacity style={styles.userInfo}>
-            <Avatar source={item.user_profile_picture} name={item.username} size={44} />
-            <View style={styles.userTextContainer}>
-              <Text style={[styles.username, { color: theme.text }]}>{item.username}</Text>
-              <Text style={[styles.timeAgo, { color: theme.textTertiary }]}>{timeAgo}</Text>
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.moreButton, { backgroundColor: theme.surfaceVariant }]}>
-            <Ionicons name="ellipsis-horizontal" size={18} color={theme.textSecondary} />
-          </TouchableOpacity>
-        </View>
+    const imageUri = item.media_data
+      ? item.media_data.startsWith('data:')
+        ? item.media_data
+        : `data:image/jpeg;base64,${item.media_data}`
+      : undefined;
 
-        <View style={styles.mediaContainer}>
-          {item.is_revealed ? (
-            item.media_data ? (
-              <Image
-                source={{ uri: item.media_data.startsWith('data:') ? item.media_data : `data:image/jpeg;base64,${item.media_data}` }}
-                style={styles.media}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={[styles.mediaPlaceholder, { backgroundColor: theme.surfaceVariant }]}>
-                <Ionicons name="image" size={48} color={theme.textTertiary} />
+    return (
+      <StaggerItem index={index}>
+        <View style={[styles.dropCard, { backgroundColor: theme.card }]}>
+          <View style={styles.dropHeader}>
+            <AnimatedPressable style={styles.userInfo} haptic="light">
+              <Avatar source={item.user_profile_picture} name={item.username} size={44} />
+              <View style={styles.userTextContainer}>
+                <Text style={[styles.username, { color: theme.text }]}>{item.username}</Text>
+                <Text style={[styles.timeAgo, { color: theme.textTertiary }]}>{timeAgo}</Text>
               </View>
-            )
-          ) : (
-            <LinearGradient
-              colors={[theme.surfaceVariant, theme.surface]}
-              style={styles.blurredContainer}
+            </AnimatedPressable>
+            <AnimatedPressable
+              style={[styles.moreButton, { backgroundColor: theme.surfaceVariant }]}
+              scaleValue={0.9}
+              haptic="light"
             >
-              <View style={styles.blurredOverlay}>
-                <View style={[styles.lockIconContainer, { backgroundColor: theme.primaryMuted }]}>
-                  <Ionicons name="lock-closed" size={32} color={theme.primary} />
+              <Ionicons name="ellipsis-horizontal" size={18} color={theme.textSecondary} />
+            </AnimatedPressable>
+          </View>
+
+          <View style={styles.mediaContainer}>
+            {item.is_revealed ? (
+              item.media_data ? (
+                <Image
+                  source={{ uri: imageUri }}
+                  style={styles.media}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={[styles.mediaPlaceholder, { backgroundColor: theme.surfaceVariant }]}>
+                  <Ionicons name="image" size={48} color={theme.textTertiary} />
                 </View>
-                <Text style={[styles.blurredText, { color: theme.text }]}>Révélation dans</Text>
-                <Text style={[styles.countdownText, { color: theme.primary }]}>
-                  {formatTimeUntilReveal()}
-                </Text>
+              )
+            ) : (
+              <BlurredDrop
+                imageUri={imageUri}
+                timeUntilReveal={formatTimeUntilReveal()}
+              />
+            )}
+          </View>
+
+          {item.is_revealed && (
+            <>
+              <View style={styles.actions}>
+                <View style={styles.actionButton}>
+                  <AnimatedLikeButton
+                    liked={item.liked_by_user}
+                    onPress={() => handleLike(item.id)}
+                    color={theme.text}
+                    likedColor={theme.like}
+                  />
+                  <Text style={[styles.actionText, { color: theme.text }]}>
+                    {item.likes_count}
+                  </Text>
+                </View>
+
+                <AnimatedPressable
+                  style={styles.actionButton}
+                  onPress={() => router.push(`/drop/${item.id}`)}
+                  haptic="light"
+                >
+                  <Ionicons name="chatbubble-outline" size={24} color={theme.text} />
+                  <Text style={[styles.actionText, { color: theme.text }]}>
+                    {item.comments_count}
+                  </Text>
+                </AnimatedPressable>
+
+                <AnimatedPressable style={styles.actionButton} haptic="light">
+                  <Ionicons name="paper-plane-outline" size={24} color={theme.text} />
+                </AnimatedPressable>
               </View>
-            </LinearGradient>
+
+              {item.description ? (
+                <View style={styles.descriptionContainer}>
+                  <Text style={[styles.descriptionUsername, { color: theme.text }]}>
+                    {item.username}
+                  </Text>
+                  <Text style={[styles.description, { color: theme.textSecondary }]}>
+                    {item.description}
+                  </Text>
+                </View>
+              ) : null}
+            </>
           )}
         </View>
-
-        {item.is_revealed && (
-          <>
-            <View style={styles.actions}>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => handleLike(item.id)}
-              >
-                <Ionicons
-                  name={item.liked_by_user ? 'heart' : 'heart-outline'}
-                  size={26}
-                  color={item.liked_by_user ? theme.like : theme.text}
-                />
-                <Text style={[styles.actionText, { color: theme.text }]}>
-                  {item.likes_count}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => router.push(`/drop/${item.id}`)}
-              >
-                <Ionicons name="chatbubble-outline" size={24} color={theme.text} />
-                <Text style={[styles.actionText, { color: theme.text }]}>
-                  {item.comments_count}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="paper-plane-outline" size={24} color={theme.text} />
-              </TouchableOpacity>
-            </View>
-
-            {item.description ? (
-              <View style={styles.descriptionContainer}>
-                <Text style={[styles.descriptionUsername, { color: theme.text }]}>
-                  {item.username}
-                </Text>
-                <Text style={[styles.description, { color: theme.textSecondary }]}>
-                  {item.description}
-                </Text>
-              </View>
-            ) : null}
-          </>
-        )}
-      </View>
+      </StaggerItem>
     );
   };
 
   if (loading) {
-    return <LoadingSpinner fullScreen message="Chargement du feed..." />;
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Dropa</Text>
+        </View>
+        <View style={styles.listContent}>
+          <DropCardSkeleton />
+          <DropCardSkeleton />
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>Dropa</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity 
-            style={[styles.iconButton, { backgroundColor: theme.surfaceVariant }]}
-            onPress={() => router.push('/messages')}
-          >
-            <Ionicons name="chatbubbles-outline" size={22} color={theme.text} />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.iconButton, { backgroundColor: theme.surfaceVariant }]}
-            onPress={() => router.push('/notifications')}
-          >
-            <Ionicons name="notifications-outline" size={22} color={theme.text} />
-          </TouchableOpacity>
+      <FadeInView>
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Dropa</Text>
+          <View style={styles.headerRight}>
+            <AnimatedPressable 
+              style={[styles.iconButton, { backgroundColor: theme.surfaceVariant }]}
+              onPress={() => router.push('/messages')}
+              scaleValue={0.9}
+            >
+              <Ionicons name="chatbubbles-outline" size={22} color={theme.text} />
+            </AnimatedPressable>
+            <AnimatedPressable 
+              style={[styles.iconButton, { backgroundColor: theme.surfaceVariant }]}
+              onPress={() => router.push('/notifications')}
+              scaleValue={0.9}
+            >
+              <Ionicons name="notifications-outline" size={22} color={theme.text} />
+            </AnimatedPressable>
+          </View>
         </View>
-      </View>
+      </FadeInView>
 
       {revealStatus && !revealStatus.is_reveal_time && (
-        <LinearGradient
-          colors={[theme.gradientStart, theme.gradientEnd]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.revealBanner}
-        >
-          <Ionicons name="time-outline" size={18} color="#FFFFFF" />
-          <Text style={styles.revealBannerText}>
-            Prochaine révélation: Dimanche 20h
-          </Text>
-          <View style={styles.countdownBadge}>
-            <Text style={styles.countdownBadgeText}>{formatTimeUntilReveal()}</Text>
-          </View>
-        </LinearGradient>
+        <FadeInView delay={100}>
+          <AnimatedPressable scaleValue={0.98}>
+            <LinearGradient
+              colors={[theme.gradientStart, theme.gradientEnd]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.revealBanner}
+            >
+              <Ionicons name="time-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.revealBannerText}>
+                Prochaine révélation: Dimanche 20h
+              </Text>
+              <View style={styles.countdownBadge}>
+                <Text style={styles.countdownBadgeText}>{formatTimeUntilReveal()}</Text>
+              </View>
+            </LinearGradient>
+          </AnimatedPressable>
+        </FadeInView>
       )}
 
       <FlatList
@@ -244,18 +268,33 @@ export default function FeedScreen() {
         }
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <View style={[styles.emptyIconContainer, { backgroundColor: theme.primaryMuted }]}>
-              <Ionicons name="images-outline" size={48} color={theme.primary} />
+          <FadeInView delay={200}>
+            <View style={styles.emptyContainer}>
+              <View style={[styles.emptyIconContainer, { backgroundColor: theme.primaryMuted }]}>
+                <Ionicons name="images-outline" size={48} color={theme.primary} />
+              </View>
+              <Text style={[styles.emptyText, { color: theme.text }]}>
+                Aucun Drop pour le moment
+              </Text>
+              <Text style={[styles.emptySubtext, { color: theme.textTertiary }]}>
+                Ajoutez des amis ou créez votre premier Drop !
+              </Text>
             </View>
-            <Text style={[styles.emptyText, { color: theme.text }]}>
-              Aucun Drop pour le moment
-            </Text>
-            <Text style={[styles.emptySubtext, { color: theme.textTertiary }]}>
-              Ajoutez des amis ou créez votre premier Drop !
-            </Text>
-          </View>
+          </FadeInView>
         }
+      />
+
+      <RevealAnimation
+        visible={showReveal}
+        onComplete={() => {
+          setShowReveal(false);
+          fetchFeed();
+        }}
+        weekStats={{
+          dropsCount: drops.filter(d => !d.is_revealed).length || 0,
+          streak: 0,
+          isPerfectWeek: false,
+        }}
       />
     </SafeAreaView>
   );
@@ -371,26 +410,6 @@ const styles = StyleSheet.create({
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  blurredOverlay: {
-    alignItems: 'center',
-  },
-  lockIconContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  blurredText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  countdownText: {
-    fontSize: 28,
-    fontWeight: '800',
-    marginTop: 4,
   },
   actions: {
     flexDirection: 'row',

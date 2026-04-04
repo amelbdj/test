@@ -18,6 +18,7 @@ import { useAuthStore } from '../../src/store/authStore';
 import { apiClient } from '../../src/api/client';
 import { Drop } from '../../src/types';
 import { LoadingSpinner } from '../../src/components/LoadingSpinner';
+import { AnimatedPressable, FadeInView } from '../../src/components/Animations';
 import { format, parseISO, isSameDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -129,28 +130,31 @@ export default function CalendarScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.statsCard, { backgroundColor: theme.card }]}>
-          <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: theme.text }]}>{drops.length}</Text>
-            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Total Drops</Text>
-          </View>
-          <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
-          <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: theme.text }]}>{getDropsCountForMonth()}</Text>
-            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Ce mois</Text>
-          </View>
-          <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
-          <View style={styles.statItem}>
-            <View style={styles.streakValue}>
-              <Text style={styles.fireEmoji}>🔥</Text>
-              <Text style={[styles.statValue, { color: theme.streak }]}>{user?.streak || 0}</Text>
+        <FadeInView>
+          <View style={[styles.statsCard, { backgroundColor: theme.card }]}>
+            <View style={styles.statItem}>
+              <Text style={[styles.statValue, { color: theme.text }]}>{drops.length}</Text>
+              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Total Drops</Text>
             </View>
-            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Streak</Text>
+            <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
+            <View style={styles.statItem}>
+              <Text style={[styles.statValue, { color: theme.text }]}>{getDropsCountForMonth()}</Text>
+              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Ce mois</Text>
+            </View>
+            <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
+            <View style={styles.statItem}>
+              <View style={styles.streakValue}>
+                <Text style={styles.fireEmoji}>🔥</Text>
+                <Text style={[styles.statValue, { color: theme.streak }]}>{user?.streak || 0}</Text>
+              </View>
+              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Streak</Text>
+            </View>
           </View>
-        </View>
+        </FadeInView>
 
-        <View style={[styles.calendarContainer, { backgroundColor: theme.card }]}>
-          <Calendar
+        <FadeInView delay={100}>
+          <View style={[styles.calendarContainer, { backgroundColor: theme.card }]}>
+            <Calendar
             onDayPress={handleDayPress}
             onMonthChange={(month) => setCurrentMonth(format(new Date(month.dateString), 'yyyy-MM'))}
             markedDates={getMarkedDates()}
@@ -176,14 +180,16 @@ export default function CalendarScreen() {
             }}
             style={styles.calendar}
           />
-        </View>
+          </View>
+        </FadeInView>
 
         {selectedDrop ? (
-          <TouchableOpacity
-            style={[styles.selectedDropCard, { backgroundColor: theme.card }]}
-            onPress={() => router.push(`/drop/${selectedDrop.id}`)}
-            activeOpacity={0.8}
-          >
+          <FadeInView delay={200}>
+            <AnimatedPressable
+              style={[styles.selectedDropCard, { backgroundColor: theme.card }]}
+              onPress={() => router.push(`/drop/${selectedDrop.id}`)}
+              scaleValue={0.98}
+            >
             <View style={styles.selectedDropHeader}>
               <Text style={[styles.selectedDropDate, { color: theme.textSecondary }]}>
                 {selectedDate && format(parseISO(selectedDate), 'EEEE d MMMM', { locale: fr })}
@@ -237,7 +243,8 @@ export default function CalendarScreen() {
                 </View>
               </View>
             </View>
-          </TouchableOpacity>
+          </AnimatedPressable>
+          </FadeInView>
         ) : selectedDate ? (
           <View style={[styles.noDropCard, { backgroundColor: theme.card }]}>
             <Ionicons name="calendar-outline" size={32} color={theme.textTertiary} />
