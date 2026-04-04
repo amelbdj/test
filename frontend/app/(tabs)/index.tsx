@@ -35,15 +35,18 @@ export default function FeedScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [revealStatus, setRevealStatus] = useState<RevealStatus | null>(null);
   const [showReveal, setShowReveal] = useState(false);
+  const [unreadNotifs, setUnreadNotifs] = useState(0);
 
   const fetchFeed = async () => {
     try {
-      const [dropsRes, revealRes] = await Promise.all([
+      const [dropsRes, revealRes, notifsRes] = await Promise.all([
         apiClient.get('/drops/feed'),
         apiClient.get('/reveal/status'),
+        apiClient.get('/notifications/unread-count'),
       ]);
       setDrops(dropsRes.data);
       setRevealStatus(revealRes.data);
+      setUnreadNotifs(notifsRes.data.count || 0);
     } catch (error) {
       console.error('Error fetching feed:', error);
     } finally {
@@ -228,6 +231,13 @@ export default function FeedScreen() {
               scaleValue={0.9}
             >
               <Ionicons name="notifications-outline" size={22} color={theme.text} />
+              {unreadNotifs > 0 && (
+                <View style={[styles.notifBadge, { backgroundColor: theme.like || '#FF3B5C' }]}>
+                  <Text style={styles.notifBadgeText}>
+                    {unreadNotifs > 9 ? '9+' : unreadNotifs}
+                  </Text>
+                </View>
+              )}
             </AnimatedPressable>
           </View>
         </View>
@@ -326,6 +336,22 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  notifBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  notifBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
   },
   revealBanner: {
     flexDirection: 'row',

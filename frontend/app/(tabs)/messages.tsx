@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,8 +13,9 @@ import { useTheme } from '../../src/hooks/useTheme';
 import { apiClient } from '../../src/api/client';
 import { Conversation } from '../../src/types';
 import { useAuthStore } from '../../src/store/authStore';
-import { LoadingSpinner } from '../../src/components/LoadingSpinner';
 import { Avatar } from '../../src/components/Avatar';
+import { FriendCardSkeleton } from '../../src/components/Skeleton';
+import { AnimatedPressable, FadeInView, StaggerItem } from '../../src/components/Animations';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -57,51 +57,68 @@ export default function MessagesScreen() {
     };
   };
 
-  const renderConversation = ({ item }: { item: Conversation }) => {
+  const renderConversation = ({ item, index }: { item: Conversation; index: number }) => {
     const other = getOtherParticipant(item);
     const timeAgo = item.last_message_time
       ? formatDistanceToNow(new Date(item.last_message_time), { addSuffix: true, locale: fr })
       : '';
 
     return (
-      <TouchableOpacity
-        style={[styles.conversationCard, { backgroundColor: theme.card, borderColor: theme.border }]}
-        onPress={() => router.push(`/chat/${item.id}`)}
-      >
-        <Avatar source={other.picture} name={other.username} size={50} />
-        <View style={styles.conversationInfo}>
-          <View style={styles.conversationHeader}>
-            <Text style={[styles.conversationName, { color: theme.text }]}>
-              {other.username}
-            </Text>
-            {timeAgo && (
-              <Text style={[styles.timeAgo, { color: theme.textTertiary }]}>{timeAgo}</Text>
+      <StaggerItem index={index}>
+        <AnimatedPressable
+          style={[styles.conversationCard, { backgroundColor: theme.card }]}
+          onPress={() => router.push(`/chat/${item.id}`)}
+          scaleValue={0.98}
+          haptic="light"
+        >
+          <Avatar source={other.picture} name={other.username} size={52} />
+          <View style={styles.conversationInfo}>
+            <View style={styles.conversationHeader}>
+              <Text style={[styles.conversationName, { color: theme.text }]}>
+                {other.username}
+              </Text>
+              {timeAgo && (
+                <Text style={[styles.timeAgo, { color: theme.textTertiary }]}>{timeAgo}</Text>
+              )}
+            </View>
+            {item.last_message && (
+              <Text
+                style={[
+                  styles.lastMessage,
+                  { color: item.unread_count > 0 ? theme.text : theme.textSecondary },
+                  item.unread_count > 0 && styles.unreadMessage,
+                ]}
+                numberOfLines={1}
+              >
+                {item.last_message}
+              </Text>
             )}
           </View>
-          {item.last_message && (
-            <Text
-              style={[
-                styles.lastMessage,
-                { color: item.unread_count > 0 ? theme.text : theme.textSecondary },
-                item.unread_count > 0 && styles.unreadMessage,
-              ]}
-              numberOfLines={1}
-            >
-              {item.last_message}
-            </Text>
+          {item.unread_count > 0 && (
+            <View style={[styles.unreadBadge, { backgroundColor: theme.primary }]}>
+              <Text style={styles.unreadCount}>{item.unread_count}</Text>
+            </View>
           )}
-        </View>
-        {item.unread_count > 0 && (
-          <View style={[styles.unreadBadge, { backgroundColor: theme.primary }]}>
-            <Text style={styles.unreadCount}>{item.unread_count}</Text>
-          </View>
-        )}
-      </TouchableOpacity>
+        </AnimatedPressable>
+      </StaggerItem>
     );
   };
 
   if (loading) {
-    return <LoadingSpinner fullScreen message="Chargement..." />;
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <FadeInView>
+          <View style={styles.header}>
+            <Text style={[styles.headerTitle, { color: theme.text }]}>Messages</Text>
+          </View>
+        </FadeInView>
+        <View style={styles.listContent}>
+          <FriendCardSkeleton />
+          <FriendCardSkeleton />
+          <FriendCardSkeleton />
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -157,10 +174,9 @@ const styles = StyleSheet.create({
   conversationCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
+    padding: 14,
+    borderRadius: 16,
+    marginBottom: 10,
   },
   conversationInfo: {
     flex: 1,
