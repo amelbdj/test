@@ -1,5 +1,6 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -14,9 +15,14 @@ import jwt
 import bcrypt
 from bson import ObjectId
 import base64
+import shutil
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
+# Media storage directory
+MEDIA_DIR = ROOT_DIR / 'media'
+MEDIA_DIR.mkdir(exist_ok=True)
 
 # JWT Configuration
 JWT_SECRET = os.getenv('JWT_SECRET', 'dropa-super-secret-key-change-in-production')
@@ -93,7 +99,8 @@ class FriendRequest(BaseModel):
     created_at: str
 
 class DropCreate(BaseModel):
-    media_data: str  # base64
+    media_data: Optional[str] = None  # base64 (for images)
+    media_url: Optional[str] = None   # URL from upload (for videos/large files)
     media_type: str  # image or video
     description: Optional[str] = ""
 
@@ -102,7 +109,8 @@ class Drop(BaseModel):
     user_id: str
     username: str
     user_profile_picture: Optional[str] = None
-    media_data: str  # base64
+    media_data: str  # base64 or empty
+    media_url: Optional[str] = None  # URL for uploaded media
     media_type: str
     description: str
     is_revealed: bool
@@ -569,7 +577,8 @@ async def create_drop(drop_data: DropCreate, current_user: dict = Depends(get_cu
         'user_id': current_user['id'],
         'username': current_user['username'],
         'user_profile_picture': current_user.get('profile_picture'),
-        'media_data': drop_data.media_data,
+        'media_data': drop_data.media_data or '',
+        'media_url': drop_data.media_url,
         'media_type': drop_data.media_type,
         'description': drop_data.description or '',
         'reveal_date': reveal_date.isoformat(),
@@ -617,6 +626,7 @@ async def create_drop(drop_data: DropCreate, current_user: dict = Depends(get_cu
         username=drop['username'],
         user_profile_picture=drop.get('user_profile_picture'),
         media_data=drop['media_data'],
+        media_url=drop.get('media_url'),
         media_type=drop['media_type'],
         description=drop['description'],
         is_revealed=False,
@@ -651,6 +661,7 @@ async def get_feed(current_user: dict = Depends(get_current_user)):
             username=drop['username'],
             user_profile_picture=drop.get('user_profile_picture'),
             media_data=drop['media_data'] if revealed else '',  # Empty if not revealed
+            media_url=drop.get('media_url') if revealed else None,
             media_type=drop['media_type'],
             description=drop['description'] if revealed else '',
             is_revealed=revealed,
@@ -683,6 +694,7 @@ async def get_user_drops(user_id: str, current_user: dict = Depends(get_current_
             username=drop['username'],
             user_profile_picture=drop.get('user_profile_picture'),
             media_data=drop['media_data'] if revealed else '',
+            media_url=drop.get('media_url') if revealed else None,
             media_type=drop['media_type'],
             description=drop['description'] if revealed else '',
             is_revealed=revealed,
@@ -1022,6 +1034,186 @@ async def get_unread_count(current_user: dict = Depends(get_current_user)):
         'read': False
     })
     return {'count': count}
+
+# ==================== WEEKLY SUMMARY ====================
+
+@api_router.get("/weekly-summary")
+async def get_weekly_summary(current_user: dict = Depends(get_current_user)):
+    """Get the weekly summary for the current user after reveal"""
+    now = datetime.now(timezone.utc)
+    
+    # Calculate the start of the current week (Monday 00:00 UTC)
+    days_since_monday = now.weekday()
+    week_start = (now - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start_str = week_start.isoformat()
+    
+    # Get user's drops this week
+    user_drops = await db.drops.find({
+        'user_id': current_user['id'],
+        'created_at': {'$gte': week_start_str}
+    }).to_list(100)
+    
+    drops_count = len(user_drops)
+    
+    # Calculate total likes and comments on user's drops this week
+    total_likes = 0
+    total_comments = 0
+    best_drop = None
+    best_drop_likes = -1
+    
+    for drop in user_drops:
+        drop_id = str(drop['_id'])
+        likes_count = len(drop.get('likes', []))
+        total_likes += likes_count
+        
+        comments_count = await db.comments.count_documents({'drop_id': drop_id})
+        total_comments += comments_count
+        
+        if likes_count > best_drop_likes:
+            best_drop_likes = likes_count
+            revealed = is_revealed(drop['reveal_date'])
+            best_drop = {
+                'id': drop_id,
+                'description': drop.get('description', '') if revealed else '',
+                'media_data': drop.get('media_data', '') if revealed else '',
+                'media_type': drop.get('media_type', 'image'),
+                'media_url': drop.get('media_url'),
+                'likes_count': likes_count,
+                'comments_count': comments_count,
+                'is_revealed': revealed,
+                'created_at': drop['created_at']
+            }
+    
+    # Get user streak
+    user_data = await db.users.find_one({'_id': ObjectId(current_user['id'])})
+    streak = user_data.get('streak', 0) if user_data else 0
+    
+    # Check if it's a perfect week (7 drops, one per day)
+    unique_days = set()
+    for drop in user_drops:
+        drop_date = datetime.fromisoformat(drop['created_at'].replace('Z', '+00:00')).date()
+        unique_days.add(drop_date)
+    is_perfect_week = len(unique_days) >= 7
+    
+    # Friends comparison - get friends' drop counts
+    friends_comparison = []
+    friend_ids = current_user.get('friends', [])
+    for friend_id in friend_ids[:10]:  # Limit to 10 friends
+        friend = await db.users.find_one({'_id': ObjectId(friend_id)})
+        if friend:
+            friend_drops_count = await db.drops.count_documents({
+                'user_id': friend_id,
+                'created_at': {'$gte': week_start_str}
+            })
+            friends_comparison.append({
+                'username': friend['username'],
+                'profile_picture': friend.get('profile_picture'),
+                'drops_count': friend_drops_count,
+                'streak': friend.get('streak', 0)
+            })
+    
+    # Sort friends by drops count descending
+    friends_comparison.sort(key=lambda x: x['drops_count'], reverse=True)
+    
+    # Determine the achievement message
+    if is_perfect_week:
+        achievement = "perfect_week"
+        achievement_message = "Semaine parfaite ! Tu as poste chaque jour"
+    elif drops_count >= 5:
+        achievement = "very_active"
+        achievement_message = "Super actif ! Tu as ete present presque toute la semaine"
+    elif drops_count >= 3:
+        achievement = "active"
+        achievement_message = "Bien joue ! Tu as ete actif cette semaine"
+    elif drops_count >= 1:
+        achievement = "starter"
+        achievement_message = "Bon debut ! Continue comme ca"
+    else:
+        achievement = "none"
+        achievement_message = "Pas de Drop cette semaine. La prochaine sera la bonne !"
+    
+    return {
+        'drops_count': drops_count,
+        'streak': streak,
+        'total_likes': total_likes,
+        'total_comments': total_comments,
+        'best_drop': best_drop,
+        'is_perfect_week': is_perfect_week,
+        'unique_days': len(unique_days),
+        'achievement': achievement,
+        'achievement_message': achievement_message,
+        'friends_comparison': friends_comparison,
+        'week_start': week_start_str,
+    }
+
+# ==================== MEDIA UPLOAD ====================
+
+@api_router.post("/upload/media")
+async def upload_media(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload a media file (image or video) and return the URL"""
+    # Validate file type
+    allowed_types = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/quicktime', 'video/webm']
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail=f"Type de fichier non supporte: {file.content_type}")
+    
+    # Max 50MB
+    max_size = 50 * 1024 * 1024
+    
+    # Generate unique filename
+    ext = file.filename.split('.')[-1] if file.filename and '.' in file.filename else 'bin'
+    if file.content_type and file.content_type.startswith('video'):
+        media_type = 'video'
+        ext = ext if ext in ['mp4', 'mov', 'webm'] else 'mp4'
+    else:
+        media_type = 'image'
+        ext = ext if ext in ['jpg', 'jpeg', 'png', 'webp', 'gif'] else 'jpg'
+    
+    filename = f"{uuid.uuid4()}.{ext}"
+    filepath = MEDIA_DIR / filename
+    
+    # Save file
+    total_size = 0
+    with open(filepath, 'wb') as f:
+        while True:
+            chunk = await file.read(1024 * 1024)  # 1MB chunks
+            if not chunk:
+                break
+            total_size += len(chunk)
+            if total_size > max_size:
+                filepath.unlink(exist_ok=True)
+                raise HTTPException(status_code=400, detail="Fichier trop volumineux (max 50MB)")
+            f.write(chunk)
+    
+    media_url = f"/api/media/{filename}"
+    
+    return {
+        'media_url': media_url,
+        'media_type': media_type,
+        'filename': filename,
+        'size': total_size
+    }
+
+@api_router.get("/media/{filename}")
+async def serve_media(filename: str):
+    """Serve a media file"""
+    from fastapi.responses import FileResponse
+    filepath = MEDIA_DIR / filename
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Determine content type
+    ext = filename.split('.')[-1].lower()
+    content_types = {
+        'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
+        'webp': 'image/webp', 'gif': 'image/gif',
+        'mp4': 'video/mp4', 'mov': 'video/quicktime', 'webm': 'video/webm'
+    }
+    content_type = content_types.get(ext, 'application/octet-stream')
+    
+    return FileResponse(filepath, media_type=content_type)
 
 # ==================== REVEAL STATUS ====================
 

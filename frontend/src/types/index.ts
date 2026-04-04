@@ -16,6 +16,7 @@ export interface Drop {
   username: string;
   user_profile_picture: string | null;
   media_data: string;
+  media_url?: string | null;
   media_type: 'image' | 'video';
   description: string;
   is_revealed: boolean;

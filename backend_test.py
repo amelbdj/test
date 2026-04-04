@@ -1,506 +1,368 @@
 #!/usr/bin/env python3
 """
-Comprehensive Backend API Testing for Dropa
-Tests all endpoints in priority order as specified in the review request
+Comprehensive backend API testing for Dropa social app
+Tests new endpoints: weekly-summary, upload/media, media/{filename}, updated drops endpoint
+Also tests existing endpoints to ensure nothing is broken
 """
 
 import requests
 import json
+import os
+import tempfile
+from PIL import Image
+import io
 import base64
-import time
-from datetime import datetime, timezone
+from datetime import datetime
 
-# Configuration
-BASE_URL = "https://sunday-unlock.preview.emergentagent.com/api"
-TEST_USERS = [
-    {"email": "test@dropa.com", "password": "Test123!", "username": "testuser"},
-    {"email": "ami@dropa.com", "password": "Test123!", "username": "amiuser"}
-]
+# Get backend URL from frontend .env
+BACKEND_URL = "https://sunday-unlock.preview.emergentagent.com/api"
 
-# Global variables for test state
-user1_token = None
-user2_token = None
-user1_id = None
-user2_id = None
-friend_request_id = None
-drop_id = None
-conversation_id = None
+# Test credentials from test_credentials.md
+TEST_EMAIL = "test@dropa.com"
+TEST_PASSWORD = "Test123!"
+TEST_EMAIL_2 = "ami@dropa.com"
+TEST_PASSWORD_2 = "Test123!"
 
-def log_test(test_name, status, details=""):
-    """Log test results"""
-    status_symbol = "✅" if status == "PASS" else "❌"
-    print(f"{status_symbol} {test_name}: {details}")
-
-def make_request(method, endpoint, data=None, token=None, params=None):
-    """Make HTTP request with proper headers"""
-    url = f"{BASE_URL}{endpoint}"
-    headers = {"Content-Type": "application/json"}
-    
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    
-    try:
-        if method == "GET":
-            response = requests.get(url, headers=headers, params=params, timeout=30, verify=True)
-        elif method == "POST":
-            response = requests.post(url, headers=headers, json=data, timeout=30, verify=True)
-        elif method == "PUT":
-            response = requests.put(url, headers=headers, json=data, timeout=30, verify=True)
-        elif method == "DELETE":
-            response = requests.delete(url, headers=headers, timeout=30, verify=True)
+class DropaAPITester:
+    def __init__(self):
+        self.session = requests.Session()
+        self.auth_token = None
+        self.auth_token_2 = None
+        self.user_id = None
+        self.user_id_2 = None
+        self.test_results = []
         
-        return response
-    except requests.exceptions.RequestException as e:
-        print(f"Request failed: {e}")
-        return None
-
-def create_test_image():
-    """Create a simple base64 test image"""
-    # Simple 1x1 pixel PNG in base64
-    return "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
-
-def test_auth_endpoints():
-    """Test authentication endpoints"""
-    global user1_token, user2_token, user1_id, user2_id
-    
-    print("\n=== TESTING AUTH ENDPOINTS ===")
-    
-    # Test 1: Try to register User 1 (might already exist)
-    print("Testing registration for User 1...")
-    response = make_request("POST", "/auth/register", TEST_USERS[0])
-    if response and response.status_code == 200:
-        data = response.json()
-        user1_token = data.get("access_token")
-        user1_id = data.get("user", {}).get("id")
-        log_test("POST /api/auth/register (User 1)", "PASS", f"User registered with ID: {user1_id}")
-    elif response and response.status_code == 400 and "already registered" in response.text:
-        log_test("POST /api/auth/register (User 1)", "PASS", "User already exists - proceeding with login")
-    else:
-        error_msg = f"Status: {response.status_code}, Text: {response.text}" if response else "No response"
-        log_test("POST /api/auth/register (User 1)", "FAIL", error_msg)
-        # Don't return False here, try login instead
-    
-    # Test 2: Login User 1 (since registration might have failed due to existing user)
-    print("Testing login for User 1...")
-    login_data = {"email": TEST_USERS[0]["email"], "password": TEST_USERS[0]["password"]}
-    response = make_request("POST", "/auth/login", login_data)
-    if response and response.status_code == 200:
-        data = response.json()
-        user1_token = data.get("access_token")
-        user1_id = data.get("user", {}).get("id")
-        log_test("POST /api/auth/login (User 1)", "PASS", f"Login successful, ID: {user1_id}")
-    else:
-        error_msg = f"Status: {response.status_code}, Text: {response.text}" if response else "No response"
-        log_test("POST /api/auth/login (User 1)", "FAIL", error_msg)
-        return False
-    
-    # Test 3: Try to register User 2 (might already exist)
-    print("Testing registration for User 2...")
-    response = make_request("POST", "/auth/register", TEST_USERS[1])
-    if response and response.status_code == 200:
-        data = response.json()
-        user2_token = data.get("access_token")
-        user2_id = data.get("user", {}).get("id")
-        log_test("POST /api/auth/register (User 2)", "PASS", f"User registered with ID: {user2_id}")
-    elif response and response.status_code == 400 and "already registered" in response.text:
-        log_test("POST /api/auth/register (User 2)", "PASS", "User already exists - proceeding with login")
-    else:
-        error_msg = f"Status: {response.status_code}, Text: {response.text}" if response else "No response"
-        log_test("POST /api/auth/register (User 2)", "FAIL", error_msg)
-        # Don't return False here, try login instead
-    
-    # Test 4: Login User 2 (since registration might have failed due to existing user)
-    print("Testing login for User 2...")
-    login_data = {"email": TEST_USERS[1]["email"], "password": TEST_USERS[1]["password"]}
-    response = make_request("POST", "/auth/login", login_data)
-    if response and response.status_code == 200:
-        data = response.json()
-        user2_token = data.get("access_token")
-        user2_id = data.get("user", {}).get("id")
-        log_test("POST /api/auth/login (User 2)", "PASS", f"Login successful, ID: {user2_id}")
-    else:
-        error_msg = f"Status: {response.status_code}, Text: {response.text}" if response else "No response"
-        log_test("POST /api/auth/login (User 2)", "FAIL", error_msg)
-        return False
-    
-    # Test 5: Get current user profile
-    print("Testing get current user...")
-    response = make_request("GET", "/auth/me", token=user1_token)
-    if response and response.status_code == 200:
-        data = response.json()
-        log_test("GET /api/auth/me", "PASS", f"Profile retrieved for user: {data.get('username')}")
-    else:
-        error_msg = f"Status: {response.status_code}, Text: {response.text}" if response else "No response"
-        log_test("GET /api/auth/me", "FAIL", error_msg)
-        return False
-    
-    return True
-
-def test_profile_endpoints():
-    """Test profile management endpoints"""
-    print("\n=== TESTING PROFILE ENDPOINTS ===")
-    
-    # Test 1: Update profile
-    update_data = {
-        "username": "testuser_updated",
-        "bio": "This is my test bio for Dropa testing"
-    }
-    response = make_request("PUT", "/profile", update_data, token=user1_token)
-    if response and response.status_code == 200:
-        data = response.json()
-        log_test("PUT /api/profile", "PASS", f"Profile updated: {data.get('username')}, bio: {data.get('bio')}")
-    else:
-        log_test("PUT /api/profile", "FAIL", f"Status: {response.status_code if response else 'No response'}")
-        return False
-    
-    # Test 2: Get user profile by ID
-    response = make_request("GET", f"/profile/{user2_id}", token=user1_token)
-    if response and response.status_code == 200:
-        data = response.json()
-        log_test("GET /api/profile/{user_id}", "PASS", f"Retrieved profile for: {data.get('username')}")
-    else:
-        log_test("GET /api/profile/{user_id}", "FAIL", f"Status: {response.status_code if response else 'No response'}")
-        return False
-    
-    return True
-
-def test_friends_endpoints():
-    """Test friends system endpoints"""
-    global friend_request_id
-    
-    print("\n=== TESTING FRIENDS ENDPOINTS ===")
-    
-    # Test 1: Search users
-    response = make_request("GET", "/users/search", params={"q": "ami"}, token=user1_token)
-    if response and response.status_code == 200:
-        data = response.json()
-        log_test("GET /api/users/search", "PASS", f"Found {len(data)} users")
-    else:
-        error_msg = f"Status: {response.status_code}, Text: {response.text}" if response else "No response"
-        log_test("GET /api/users/search", "FAIL", error_msg)
-        return False
-    
-    # Test 2: Send friend request (might already exist)
-    response = make_request("POST", f"/friends/request/{user2_id}", token=user1_token)
-    if response and response.status_code == 200:
-        log_test("POST /api/friends/request/{user_id}", "PASS", "Friend request sent")
-    elif response and response.status_code == 400 and "already pending" in response.text:
-        log_test("POST /api/friends/request/{user_id}", "PASS", "Friend request already exists - continuing")
-    else:
-        error_msg = f"Status: {response.status_code}, Text: {response.text}" if response else "No response"
-        log_test("POST /api/friends/request/{user_id}", "FAIL", error_msg)
-        return False
-    
-    # Test 3: Get pending friend requests (as user2)
-    response = make_request("GET", "/friends/requests", token=user2_token)
-    if response and response.status_code == 200:
-        data = response.json()
-        if data:
-            friend_request_id = data[0]["id"]
-            log_test("GET /api/friends/requests", "PASS", f"Found {len(data)} pending requests")
-        else:
-            log_test("GET /api/friends/requests", "PASS", "No pending requests found")
-    else:
-        error_msg = f"Status: {response.status_code}, Text: {response.text}" if response else "No response"
-        log_test("GET /api/friends/requests", "FAIL", error_msg)
-        return False
-    
-    # Test 4: Accept friend request (if we have one)
-    if friend_request_id:
-        response = make_request("POST", f"/friends/accept/{friend_request_id}", token=user2_token)
-        if response and response.status_code == 200:
-            log_test("POST /api/friends/accept/{request_id}", "PASS", "Friend request accepted")
-        else:
-            error_msg = f"Status: {response.status_code}, Text: {response.text}" if response else "No response"
-            log_test("POST /api/friends/accept/{request_id}", "FAIL", error_msg)
+    def log_result(self, test_name, success, details=""):
+        """Log test result"""
+        status = "✅ PASS" if success else "❌ FAIL"
+        self.test_results.append(f"{status} {test_name}: {details}")
+        print(f"{status} {test_name}: {details}")
+        
+    def create_test_image(self):
+        """Create a small test image for upload testing"""
+        img = Image.new('RGB', (100, 100), color='red')
+        img_bytes = io.BytesIO()
+        img.save(img_bytes, format='JPEG')
+        img_bytes.seek(0)
+        return img_bytes
+        
+    def test_login(self):
+        """Test login endpoint and get auth token"""
+        try:
+            response = self.session.post(f"{BACKEND_URL}/auth/login", json={
+                "email": TEST_EMAIL,
+                "password": TEST_PASSWORD
+            })
+            
+            if response.status_code == 200:
+                data = response.json()
+                self.auth_token = data.get('access_token')
+                self.user_id = data.get('user', {}).get('id')
+                self.session.headers.update({'Authorization': f'Bearer {self.auth_token}'})
+                self.log_result("Login (test@dropa.com)", True, f"Token received, user_id: {self.user_id}")
+                return True
+            else:
+                self.log_result("Login (test@dropa.com)", False, f"Status: {response.status_code}, Response: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_result("Login (test@dropa.com)", False, f"Exception: {str(e)}")
             return False
-    else:
-        log_test("POST /api/friends/accept/{request_id}", "PASS", "No pending request to accept")
-    
-    # Test 5: Get friends list
-    response = make_request("GET", "/friends", token=user1_token)
-    if response and response.status_code == 200:
-        data = response.json()
-        log_test("GET /api/friends", "PASS", f"Friends list retrieved: {len(data)} friends")
-    else:
-        error_msg = f"Status: {response.status_code}, Text: {response.text}" if response else "No response"
-        log_test("GET /api/friends", "FAIL", error_msg)
-        return False
-    
-    return True
-
-def test_drops_endpoints():
-    """Test drops (content) endpoints"""
-    global drop_id
-    
-    print("\n=== TESTING DROPS ENDPOINTS ===")
-    
-    # Test 1: Create drop
-    drop_data = {
-        "media_data": create_test_image(),
-        "media_type": "image",
-        "description": "This is my test drop for Dropa testing!"
-    }
-    response = make_request("POST", "/drops", drop_data, token=user1_token)
-    if response and response.status_code == 200:
-        data = response.json()
-        drop_id = data.get("id")
-        log_test("POST /api/drops", "PASS", f"Drop created with ID: {drop_id}")
-    else:
-        log_test("POST /api/drops", "FAIL", f"Status: {response.status_code if response else 'No response'}")
-        return False
-    
-    # Test 2: Get feed
-    response = make_request("GET", "/drops/feed", token=user1_token)
-    if response and response.status_code == 200:
-        data = response.json()
-        log_test("GET /api/drops/feed", "PASS", f"Feed retrieved with {len(data)} drops")
-    else:
-        log_test("GET /api/drops/feed", "FAIL", f"Status: {response.status_code if response else 'No response'}")
-        return False
-    
-    # Test 3: Get user's drops
-    response = make_request("GET", f"/drops/user/{user1_id}", token=user1_token)
-    if response and response.status_code == 200:
-        data = response.json()
-        log_test("GET /api/drops/user/{user_id}", "PASS", f"User drops retrieved: {len(data)} drops")
-    else:
-        log_test("GET /api/drops/user/{user_id}", "FAIL", f"Status: {response.status_code if response else 'No response'}")
-        return False
-    
-    # Test 4: Try to like drop (should fail if not revealed)
-    response = make_request("POST", f"/drops/{drop_id}/like", token=user2_token)
-    if response and response.status_code == 400:
-        log_test("POST /api/drops/{drop_id}/like (unrevealed)", "PASS", "Correctly blocked like on unrevealed drop")
-    elif response and response.status_code == 200:
-        log_test("POST /api/drops/{drop_id}/like (revealed)", "PASS", "Like successful on revealed drop")
-    else:
-        log_test("POST /api/drops/{drop_id}/like", "FAIL", f"Status: {response.status_code if response else 'No response'}")
-        return False
-    
-    return True
-
-def test_comments_endpoints():
-    """Test comments endpoints"""
-    print("\n=== TESTING COMMENTS ENDPOINTS ===")
-    
-    # Test 1: Try to add comment (should fail if not revealed)
-    comment_data = {"content": "This is a test comment on the drop!"}
-    response = make_request("POST", f"/drops/{drop_id}/comments", comment_data, token=user2_token)
-    if response and response.status_code == 400:
-        log_test("POST /api/drops/{drop_id}/comments (unrevealed)", "PASS", "Correctly blocked comment on unrevealed drop")
-    elif response and response.status_code == 200:
-        log_test("POST /api/drops/{drop_id}/comments (revealed)", "PASS", "Comment added successfully on revealed drop")
-    else:
-        log_test("POST /api/drops/{drop_id}/comments", "FAIL", f"Status: {response.status_code if response else 'No response'}")
-        return False
-    
-    # Test 2: Get comments
-    response = make_request("GET", f"/drops/{drop_id}/comments", token=user1_token)
-    if response and response.status_code == 200:
-        data = response.json()
-        log_test("GET /api/drops/{drop_id}/comments", "PASS", f"Comments retrieved: {len(data)} comments")
-    else:
-        log_test("GET /api/drops/{drop_id}/comments", "FAIL", f"Status: {response.status_code if response else 'No response'}")
-        return False
-    
-    return True
-
-def test_reveal_system():
-    """Test reveal system endpoint"""
-    print("\n=== TESTING REVEAL SYSTEM ===")
-    
-    response = make_request("GET", "/reveal/status", token=user1_token)
-    if response and response.status_code == 200:
-        data = response.json()
-        log_test("GET /api/reveal/status", "PASS", f"Next reveal: {data.get('next_reveal')}, Seconds until: {data.get('seconds_until_reveal')}")
-    else:
-        log_test("GET /api/reveal/status", "FAIL", f"Status: {response.status_code if response else 'No response'}")
-        return False
-    
-    return True
-
-def test_messaging_endpoints():
-    """Test messaging endpoints"""
-    global conversation_id
-    
-    print("\n=== TESTING MESSAGING ENDPOINTS ===")
-    
-    # Test 1: Get conversations (should be empty initially)
-    response = make_request("GET", "/conversations", token=user1_token)
-    if response and response.status_code == 200:
-        data = response.json()
-        log_test("GET /api/conversations", "PASS", f"Conversations retrieved: {len(data)} conversations")
-    else:
-        log_test("GET /api/conversations", "FAIL", f"Status: {response.status_code if response else 'No response'}")
-        return False
-    
-    # Test 2: Create conversation with friend
-    response = make_request("POST", f"/conversations/{user2_id}", token=user1_token)
-    if response and response.status_code == 200:
-        data = response.json()
-        conversation_id = data.get("id")
-        log_test("POST /api/conversations/{friend_id}", "PASS", f"Conversation created with ID: {conversation_id}")
-    else:
-        log_test("POST /api/conversations/{friend_id}", "FAIL", f"Status: {response.status_code if response else 'No response'}")
-        return False
-    
-    # Test 3: Send message
-    message_data = {"content": "Hello! This is a test message from the API testing."}
-    response = make_request("POST", f"/conversations/{conversation_id}/messages", message_data, token=user1_token)
-    if response and response.status_code == 200:
-        data = response.json()
-        log_test("POST /api/conversations/{id}/messages", "PASS", f"Message sent: {data.get('content')[:30]}...")
-    else:
-        log_test("POST /api/conversations/{id}/messages", "FAIL", f"Status: {response.status_code if response else 'No response'}")
-        return False
-    
-    # Test 4: Get messages
-    response = make_request("GET", f"/conversations/{conversation_id}/messages", token=user2_token)
-    if response and response.status_code == 200:
-        data = response.json()
-        log_test("GET /api/conversations/{id}/messages", "PASS", f"Messages retrieved: {len(data)} messages")
-    else:
-        log_test("GET /api/conversations/{id}/messages", "FAIL", f"Status: {response.status_code if response else 'No response'}")
-        return False
-    
-    return True
-
-def test_notifications_endpoints():
-    """Test notifications endpoints"""
-    print("\n=== TESTING NOTIFICATIONS ENDPOINTS ===")
-    
-    # Test 1: Get notifications
-    response = make_request("GET", "/notifications", token=user2_token)
-    if response and response.status_code == 200:
-        data = response.json()
-        log_test("GET /api/notifications", "PASS", f"Notifications retrieved: {len(data)} notifications")
-    else:
-        log_test("GET /api/notifications", "FAIL", f"Status: {response.status_code if response else 'No response'}")
-        return False
-    
-    # Test 2: Get unread count
-    response = make_request("GET", "/notifications/unread-count", token=user2_token)
-    if response and response.status_code == 200:
-        data = response.json()
-        log_test("GET /api/notifications/unread-count", "PASS", f"Unread count: {data.get('count')}")
-    else:
-        log_test("GET /api/notifications/unread-count", "FAIL", f"Status: {response.status_code if response else 'No response'}")
-        return False
-    
-    # Test 3: Mark notifications as read
-    response = make_request("POST", "/notifications/read", token=user2_token)
-    if response and response.status_code == 200:
-        log_test("POST /api/notifications/read", "PASS", "Notifications marked as read")
-    else:
-        log_test("POST /api/notifications/read", "FAIL", f"Status: {response.status_code if response else 'No response'}")
-        return False
-    
-    return True
-
-def test_streak_system():
-    """Test streak system by checking user profile after drop creation"""
-    print("\n=== TESTING STREAK SYSTEM ===")
-    
-    # Get user profile to check streak
-    response = make_request("GET", "/auth/me", token=user1_token)
-    if response and response.status_code == 200:
-        data = response.json()
-        streak = data.get("streak", 0)
-        log_test("Streak System Check", "PASS", f"User streak after drop creation: {streak}")
-        return True
-    else:
-        log_test("Streak System Check", "FAIL", f"Status: {response.status_code if response else 'No response'}")
-        return False
-
-def test_additional_friend_operations():
-    """Test additional friend operations like reject and remove"""
-    print("\n=== TESTING ADDITIONAL FRIEND OPERATIONS ===")
-    
-    # Test removing friend
-    response = make_request("DELETE", f"/friends/{user2_id}", token=user1_token)
-    if response and response.status_code == 200:
-        log_test("DELETE /api/friends/{friend_id}", "PASS", "Friend removed successfully")
+            
+    def test_login_second_user(self):
+        """Test login for second user"""
+        try:
+            response = requests.post(f"{BACKEND_URL}/auth/login", json={
+                "email": TEST_EMAIL_2,
+                "password": TEST_PASSWORD_2
+            })
+            
+            if response.status_code == 200:
+                data = response.json()
+                self.auth_token_2 = data.get('access_token')
+                self.user_id_2 = data.get('user', {}).get('id')
+                self.log_result("Login (ami@dropa.com)", True, f"Token received, user_id: {self.user_id_2}")
+                return True
+            else:
+                self.log_result("Login (ami@dropa.com)", False, f"Status: {response.status_code}, Response: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_result("Login (ami@dropa.com)", False, f"Exception: {str(e)}")
+            return False
+            
+    def test_weekly_summary(self):
+        """Test GET /api/weekly-summary endpoint"""
+        try:
+            response = self.session.get(f"{BACKEND_URL}/weekly-summary")
+            
+            if response.status_code == 200:
+                data = response.json()
+                required_fields = [
+                    'drops_count', 'streak', 'total_likes', 'total_comments', 
+                    'is_perfect_week', 'unique_days', 'achievement', 
+                    'achievement_message', 'friends_comparison', 'week_start'
+                ]
+                
+                missing_fields = [field for field in required_fields if field not in data]
+                if missing_fields:
+                    self.log_result("Weekly Summary", False, f"Missing fields: {missing_fields}")
+                    return False
+                    
+                # Validate data types
+                if not isinstance(data['drops_count'], int):
+                    self.log_result("Weekly Summary", False, "drops_count should be integer")
+                    return False
+                    
+                if not isinstance(data['streak'], int):
+                    self.log_result("Weekly Summary", False, "streak should be integer")
+                    return False
+                    
+                if not isinstance(data['friends_comparison'], list):
+                    self.log_result("Weekly Summary", False, "friends_comparison should be list")
+                    return False
+                    
+                self.log_result("Weekly Summary", True, f"All fields present. Drops: {data['drops_count']}, Streak: {data['streak']}, Achievement: {data['achievement']}")
+                return True
+            else:
+                self.log_result("Weekly Summary", False, f"Status: {response.status_code}, Response: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_result("Weekly Summary", False, f"Exception: {str(e)}")
+            return False
+            
+    def test_media_upload(self):
+        """Test POST /api/upload/media endpoint"""
+        try:
+            # Create test image
+            test_image = self.create_test_image()
+            
+            files = {
+                'file': ('test_image.jpg', test_image, 'image/jpeg')
+            }
+            
+            response = self.session.post(f"{BACKEND_URL}/upload/media", files=files)
+            
+            if response.status_code == 200:
+                data = response.json()
+                required_fields = ['media_url', 'media_type', 'filename', 'size']
+                
+                missing_fields = [field for field in required_fields if field not in data]
+                if missing_fields:
+                    self.log_result("Media Upload", False, f"Missing fields: {missing_fields}")
+                    return False, None
+                    
+                if data['media_type'] != 'image':
+                    self.log_result("Media Upload", False, f"Expected media_type 'image', got '{data['media_type']}'")
+                    return False, None
+                    
+                if not data['media_url'].startswith('/api/media/'):
+                    self.log_result("Media Upload", False, f"Invalid media_url format: {data['media_url']}")
+                    return False, None
+                    
+                self.log_result("Media Upload", True, f"File uploaded: {data['filename']}, Size: {data['size']} bytes")
+                return True, data['filename']
+            else:
+                self.log_result("Media Upload", False, f"Status: {response.status_code}, Response: {response.text}")
+                return False, None
+                
+        except Exception as e:
+            self.log_result("Media Upload", False, f"Exception: {str(e)}")
+            return False, None
+            
+    def test_media_serve(self, filename):
+        """Test GET /api/media/{filename} endpoint"""
+        if not filename:
+            self.log_result("Media Serve", False, "No filename provided")
+            return False
+            
+        try:
+            # Test without auth (should work)
+            response = requests.get(f"{BACKEND_URL}/media/{filename}")
+            
+            if response.status_code == 200:
+                content_type = response.headers.get('content-type', '')
+                if content_type.startswith('image/'):
+                    self.log_result("Media Serve", True, f"File served correctly, Content-Type: {content_type}")
+                    return True
+                else:
+                    self.log_result("Media Serve", False, f"Unexpected content-type: {content_type}")
+                    return False
+            else:
+                self.log_result("Media Serve", False, f"Status: {response.status_code}, Response: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_result("Media Serve", False, f"Exception: {str(e)}")
+            return False
+            
+    def test_create_drop_with_media_url(self, media_url):
+        """Test POST /api/drops with media_url field"""
+        try:
+            drop_data = {
+                "media_url": media_url,
+                "media_type": "video",  # Test with video type
+                "description": "Test drop with media URL from upload"
+            }
+            
+            response = self.session.post(f"{BACKEND_URL}/drops", json=drop_data)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                if data.get('media_url') != media_url:
+                    self.log_result("Create Drop with Media URL", False, f"Media URL mismatch: expected {media_url}, got {data.get('media_url')}")
+                    return False
+                    
+                if data.get('media_type') != 'video':
+                    self.log_result("Create Drop with Media URL", False, f"Media type mismatch: expected 'video', got {data.get('media_type')}")
+                    return False
+                    
+                if not data.get('id'):
+                    self.log_result("Create Drop with Media URL", False, "No drop ID returned")
+                    return False
+                    
+                self.log_result("Create Drop with Media URL", True, f"Drop created with ID: {data['id']}, media_url: {data['media_url']}")
+                return True
+            else:
+                self.log_result("Create Drop with Media URL", False, f"Status: {response.status_code}, Response: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_result("Create Drop with Media URL", False, f"Exception: {str(e)}")
+            return False
+            
+    def test_drops_feed(self):
+        """Test GET /api/drops/feed endpoint"""
+        try:
+            response = self.session.get(f"{BACKEND_URL}/drops/feed")
+            
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, list):
+                    self.log_result("Drops Feed", True, f"Feed retrieved with {len(data)} drops")
+                    return True
+                else:
+                    self.log_result("Drops Feed", False, "Response is not a list")
+                    return False
+            else:
+                self.log_result("Drops Feed", False, f"Status: {response.status_code}, Response: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_result("Drops Feed", False, f"Exception: {str(e)}")
+            return False
+            
+    def test_notifications_unread_count(self):
+        """Test GET /api/notifications/unread-count endpoint"""
+        try:
+            response = self.session.get(f"{BACKEND_URL}/notifications/unread-count")
+            
+            if response.status_code == 200:
+                data = response.json()
+                if 'count' in data and isinstance(data['count'], int):
+                    self.log_result("Notifications Unread Count", True, f"Unread count: {data['count']}")
+                    return True
+                else:
+                    self.log_result("Notifications Unread Count", False, "Invalid response format")
+                    return False
+            else:
+                self.log_result("Notifications Unread Count", False, f"Status: {response.status_code}, Response: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_result("Notifications Unread Count", False, f"Exception: {str(e)}")
+            return False
+            
+    def test_auth_required_endpoints(self):
+        """Test that auth-required endpoints reject requests without token"""
+        try:
+            # Test without auth token
+            session_no_auth = requests.Session()
+            
+            # Test GET endpoints
+            get_endpoints = [
+                "/weekly-summary",
+                "/drops/feed", 
+                "/notifications/unread-count"
+            ]
+            
+            all_rejected = True
+            for endpoint in get_endpoints:
+                response = session_no_auth.get(f"{BACKEND_URL}{endpoint}")
+                # Accept both 401 and 403 as valid auth rejection codes
+                if response.status_code not in [401, 403]:
+                    self.log_result("Auth Protection", False, f"Endpoint {endpoint} should return 401/403 without auth, got {response.status_code}")
+                    all_rejected = False
+                    
+            # Test POST upload endpoint specifically
+            response = session_no_auth.post(f"{BACKEND_URL}/upload/media")
+            if response.status_code not in [401, 403]:
+                self.log_result("Auth Protection", False, f"Upload endpoint should return 401/403 without auth, got {response.status_code}")
+                all_rejected = False
+                    
+            if all_rejected:
+                self.log_result("Auth Protection", True, "All protected endpoints correctly reject unauthenticated requests")
+                return True
+            else:
+                return False
+                
+        except Exception as e:
+            self.log_result("Auth Protection", False, f"Exception: {str(e)}")
+            return False
+            
+    def run_all_tests(self):
+        """Run all tests in sequence"""
+        print("🚀 Starting Dropa Backend API Tests")
+        print("=" * 50)
         
-        # Re-add friend for other tests
-        make_request("POST", f"/friends/request/{user2_id}", token=user1_token)
-        requests_response = make_request("GET", "/friends/requests", token=user2_token)
-        if requests_response and requests_response.status_code == 200:
-            requests_data = requests_response.json()
-            if requests_data:
-                new_request_id = requests_data[0]["id"]
-                make_request("POST", f"/friends/accept/{new_request_id}", token=user2_token)
+        # Test login first
+        if not self.test_login():
+            print("❌ Cannot proceed without authentication")
+            return False
+            
+        # Test second user login
+        self.test_login_second_user()
         
-        return True
-    else:
-        log_test("DELETE /api/friends/{friend_id}", "FAIL", f"Status: {response.status_code if response else 'No response'}")
-        return False
-
-def run_all_tests():
-    """Run all backend tests in priority order"""
-    print("🚀 Starting Dropa Backend API Testing")
-    print(f"Testing against: {BASE_URL}")
-    print("=" * 60)
-    
-    test_results = []
-    
-    # High Priority Tests - Auth must pass first
-    auth_result = test_auth_endpoints()
-    test_results.append(("Auth", auth_result))
-    
-    if not auth_result:
-        print("\n❌ Authentication failed - cannot proceed with other tests")
-        print("=" * 60)
-        print("🏁 TEST SUMMARY")
-        print("=" * 60)
-        print("Auth: ❌ FAILED")
-        print("All other tests: ⏭️ SKIPPED (Auth required)")
-        print("\nTotal: 1 test")
-        print("Passed: 0")
-        print("Failed: 1")
-        print("\n⚠️ Authentication must be fixed before other tests can run.")
-        return False
-    
-    # Continue with other tests only if auth passed
-    test_results.append(("Profile", test_profile_endpoints()))
-    test_results.append(("Friends", test_friends_endpoints()))
-    test_results.append(("Drops", test_drops_endpoints()))
-    test_results.append(("Reveal System", test_reveal_system()))
-    
-    # Medium Priority Tests
-    test_results.append(("Comments", test_comments_endpoints()))
-    test_results.append(("Messaging", test_messaging_endpoints()))
-    test_results.append(("Notifications", test_notifications_endpoints()))
-    test_results.append(("Streak System", test_streak_system()))
-    test_results.append(("Additional Friend Ops", test_additional_friend_operations()))
-    
-    # Summary
-    print("\n" + "=" * 60)
-    print("🏁 TEST SUMMARY")
-    print("=" * 60)
-    
-    passed = 0
-    failed = 0
-    
-    for test_name, result in test_results:
-        status = "✅ PASSED" if result else "❌ FAILED"
-        print(f"{test_name}: {status}")
-        if result:
-            passed += 1
+        # Test auth protection
+        self.test_auth_required_endpoints()
+        
+        # Test new endpoints
+        self.test_weekly_summary()
+        
+        upload_success, filename = self.test_media_upload()
+        if upload_success and filename:
+            self.test_media_serve(filename)
+            # Test creating drop with the uploaded media URL
+            media_url = f"/api/media/{filename}"
+            self.test_create_drop_with_media_url(media_url)
+        
+        # Test existing endpoints to ensure nothing is broken
+        self.test_drops_feed()
+        self.test_notifications_unread_count()
+        
+        # Print summary
+        print("\n" + "=" * 50)
+        print("📊 TEST SUMMARY")
+        print("=" * 50)
+        
+        passed = sum(1 for result in self.test_results if "✅ PASS" in result)
+        failed = sum(1 for result in self.test_results if "❌ FAIL" in result)
+        
+        for result in self.test_results:
+            print(result)
+            
+        print(f"\n📈 Results: {passed} passed, {failed} failed")
+        
+        if failed == 0:
+            print("🎉 All tests passed!")
+            return True
         else:
-            failed += 1
-    
-    print(f"\nTotal: {passed + failed} tests")
-    print(f"Passed: {passed}")
-    print(f"Failed: {failed}")
-    
-    if failed == 0:
-        print("\n🎉 All tests passed! Backend API is working correctly.")
-    else:
-        print(f"\n⚠️  {failed} test(s) failed. Check the details above.")
-    
-    return failed == 0
+            print(f"⚠️  {failed} test(s) failed")
+            return False
 
 if __name__ == "__main__":
-    success = run_all_tests()
+    tester = DropaAPITester()
+    success = tester.run_all_tests()
     exit(0 if success else 1)

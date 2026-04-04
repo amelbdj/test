@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,51 +10,83 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import { Video, ResizeMode } from 'expo-av';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/hooks/useTheme';
 import { apiClient } from '../../src/api/client';
 import { Button } from '../../src/components/Button';
+import { AnimatedPressable, FadeInView } from '../../src/components/Animations';
+
+type MediaType = 'image' | 'video';
+
+interface MediaState {
+  uri: string;
+  base64?: string;
+  type: MediaType;
+  filename?: string;
+}
 
 export default function CreateDropScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const [media, setMedia] = useState<{ uri: string; base64: string; type: 'image' | 'video' } | null>(null);
+  const [media, setMedia] = useState<MediaState | null>(null);
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
+  const videoRef = useRef<Video>(null);
 
-  const pickImage = async () => {
+  const pickMedia = async (type: 'photo' | 'video' | 'both') => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission requise', 'Nous avons besoin de votre permission pour accéder à vos photos.');
+      Alert.alert('Permission requise', 'Nous avons besoin de votre permission pour acceder a vos medias.');
       return;
     }
 
+    const mediaTypes = type === 'photo'
+      ? ImagePicker.MediaTypeOptions.Images
+      : type === 'video'
+        ? ImagePicker.MediaTypeOptions.Videos
+        : ImagePicker.MediaTypeOptions.All;
+
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes,
       allowsEditing: true,
-      aspect: [1, 1],
+      aspect: type === 'video' ? undefined : [1, 1],
       quality: 0.7,
-      base64: true,
+      base64: type !== 'video',
+      videoMaxDuration: 60,
     });
 
-    if (!result.canceled && result.assets[0].base64) {
-      setMedia({
-        uri: result.assets[0].uri,
-        base64: `data:image/jpeg;base64,${result.assets[0].base64}`,
-        type: 'image',
-      });
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      const isVideo = asset.type === 'video' || (asset.uri && asset.uri.match(/\.(mp4|mov|webm|avi)$/i));
+
+      if (isVideo) {
+        setMedia({
+          uri: asset.uri,
+          type: 'video',
+          filename: asset.fileName || 'video.mp4',
+        });
+      } else if (asset.base64) {
+        setMedia({
+          uri: asset.uri,
+          base64: `data:image/jpeg;base64,${asset.base64}`,
+          type: 'image',
+        });
+      }
     }
   };
 
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission requise', 'Nous avons besoin de votre permission pour utiliser la caméra.');
+      Alert.alert('Permission requise', 'Nous avons besoin de votre permission pour utiliser la camera.');
       return;
     }
 
@@ -76,27 +108,53 @@ export default function CreateDropScreen() {
 
   const handleSubmit = async () => {
     if (!media) {
-      Alert.alert('Erreur', 'Veuillez sélectionner une photo');
+      Alert.alert('Erreur', 'Veuillez selectionner un media');
       return;
     }
 
     setLoading(true);
     try {
-      await apiClient.post('/drops', {
-        media_data: media.base64,
-        media_type: media.type,
-        description: description.trim(),
-      });
+      if (media.type === 'video') {
+        // Upload video file to server
+        setUploadProgress('Upload de la video...');
+        const formData = new FormData();
+        formData.append('file', {
+          uri: media.uri,
+          type: 'video/mp4',
+          name: media.filename || 'video.mp4',
+        } as any);
+
+        const uploadRes = await apiClient.post('/upload/media', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+
+        setUploadProgress('Creation du Drop...');
+        await apiClient.post('/drops', {
+          media_url: uploadRes.data.media_url,
+          media_type: 'video',
+          description: description.trim(),
+        });
+      } else {
+        // Image: send as base64
+        setUploadProgress('Creation du Drop...');
+        await apiClient.post('/drops', {
+          media_data: media.base64,
+          media_type: 'image',
+          description: description.trim(),
+        });
+      }
 
       Alert.alert(
-        'Drop créé ! 🎉',
-        'Votre Drop sera révélé dimanche à 20h',
+        'Drop cree ! 🎉',
+        'Votre Drop sera revele dimanche a 20h',
         [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]
       );
     } catch (error: any) {
-      Alert.alert('Erreur', error.response?.data?.detail || 'Impossible de créer le Drop');
+      console.error('Create drop error:', error);
+      Alert.alert('Erreur', error.response?.data?.detail || 'Impossible de creer le Drop');
     } finally {
       setLoading(false);
+      setUploadProgress('');
     }
   };
 
@@ -107,81 +165,142 @@ export default function CreateDropScreen() {
         style={styles.flex}
       >
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <View style={styles.header}>
-            <Text style={[styles.headerTitle, { color: theme.text }]}>Nouveau Drop</Text>
-            <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
-              Sera révélé dimanche à 20h
-            </Text>
-          </View>
+          <FadeInView>
+            <View style={styles.header}>
+              <Text style={[styles.headerTitle, { color: theme.text }]}>Nouveau Drop</Text>
+              <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
+                Sera revele dimanche a 20h
+              </Text>
+            </View>
+          </FadeInView>
 
           {media ? (
-            <View style={styles.previewContainer}>
-              <Image source={{ uri: media.uri }} style={styles.preview} />
-              <TouchableOpacity
-                style={[styles.removeButton, { backgroundColor: theme.error }]}
-                onPress={() => setMedia(null)}
-              >
-                <Ionicons name="close" size={22} color="#FFFFFF" />
-              </TouchableOpacity>
-              <View style={[styles.lockedOverlay, { backgroundColor: theme.overlay }]}>
-                <Ionicons name="lock-closed" size={32} color={theme.primary} />
-                <Text style={[styles.lockedText, { color: theme.text }]}>Aperçu flouté</Text>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.mediaButtons}>
-              <TouchableOpacity
-                style={[styles.mediaButton, { backgroundColor: theme.card }]}
-                onPress={takePhoto}
-              >
-                <View style={[styles.mediaIconContainer, { backgroundColor: theme.primaryMuted }]}>
-                  <Ionicons name="camera" size={32} color={theme.primary} />
-                </View>
-                <Text style={[styles.mediaButtonText, { color: theme.text }]}>Prendre une photo</Text>
-                <Text style={[styles.mediaButtonSubtext, { color: theme.textTertiary }]}>Utilisez votre caméra</Text>
-              </TouchableOpacity>
+            <FadeInView>
+              <View style={styles.previewContainer}>
+                {media.type === 'video' ? (
+                  <Video
+                    ref={videoRef}
+                    source={{ uri: media.uri }}
+                    style={styles.preview}
+                    resizeMode={ResizeMode.COVER}
+                    shouldPlay={false}
+                    isLooping
+                    useNativeControls
+                  />
+                ) : (
+                  <Image source={{ uri: media.uri }} style={styles.preview} />
+                )}
 
-              <TouchableOpacity
-                style={[styles.mediaButton, { backgroundColor: theme.card }]}
-                onPress={pickImage}
-              >
-                <View style={[styles.mediaIconContainer, { backgroundColor: theme.secondaryMuted }]}>
-                  <Ionicons name="images" size={32} color={theme.secondary} />
+                <AnimatedPressable
+                  style={[styles.removeButton, { backgroundColor: theme.error }]}
+                  onPress={() => setMedia(null)}
+                  scaleValue={0.9}
+                >
+                  <Ionicons name="close" size={22} color="#FFFFFF" />
+                </AnimatedPressable>
+
+                <View style={[styles.mediaTypeBadge, { backgroundColor: media.type === 'video' ? '#FF6B35' : theme.primary }]}>
+                  <Ionicons name={media.type === 'video' ? 'videocam' : 'image'} size={14} color="#FFF" />
+                  <Text style={styles.mediaTypeBadgeText}>
+                    {media.type === 'video' ? 'Video' : 'Photo'}
+                  </Text>
                 </View>
-                <Text style={[styles.mediaButtonText, { color: theme.text }]}>Galerie</Text>
-                <Text style={[styles.mediaButtonSubtext, { color: theme.textTertiary }]}>Choisissez une photo</Text>
-              </TouchableOpacity>
-            </View>
+
+                <View style={[styles.lockedOverlay, { backgroundColor: theme.overlay }]}>
+                  <Ionicons name="lock-closed" size={24} color={theme.primary} />
+                  <Text style={[styles.lockedText, { color: theme.text }]}>Sera floute jusqu'au reveal</Text>
+                </View>
+              </View>
+            </FadeInView>
+          ) : (
+            <FadeInView delay={100}>
+              <View style={styles.mediaButtons}>
+                <AnimatedPressable
+                  style={[styles.mediaButton, { backgroundColor: theme.card }]}
+                  onPress={takePhoto}
+                  scaleValue={0.97}
+                >
+                  <View style={[styles.mediaIconContainer, { backgroundColor: theme.primaryMuted }]}>
+                    <Ionicons name="camera" size={32} color={theme.primary} />
+                  </View>
+                  <Text style={[styles.mediaButtonText, { color: theme.text }]}>Camera</Text>
+                  <Text style={[styles.mediaButtonSubtext, { color: theme.textTertiary }]}>Prendre une photo</Text>
+                </AnimatedPressable>
+
+                <AnimatedPressable
+                  style={[styles.mediaButton, { backgroundColor: theme.card }]}
+                  onPress={() => pickMedia('photo')}
+                  scaleValue={0.97}
+                >
+                  <View style={[styles.mediaIconContainer, { backgroundColor: theme.secondaryMuted }]}>
+                    <Ionicons name="images" size={32} color={theme.secondary} />
+                  </View>
+                  <Text style={[styles.mediaButtonText, { color: theme.text }]}>Photo</Text>
+                  <Text style={[styles.mediaButtonSubtext, { color: theme.textTertiary }]}>Depuis la galerie</Text>
+                </AnimatedPressable>
+              </View>
+
+              <AnimatedPressable
+                style={[styles.videoButton, { backgroundColor: theme.card }]}
+                onPress={() => pickMedia('video')}
+                scaleValue={0.98}
+              >
+                <LinearGradient
+                  colors={['#FF6B35', '#FF3B5C']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.videoIconContainer}
+                >
+                  <Ionicons name="videocam" size={24} color="#FFF" />
+                </LinearGradient>
+                <View style={styles.videoButtonTextContainer}>
+                  <Text style={[styles.mediaButtonText, { color: theme.text }]}>Video</Text>
+                  <Text style={[styles.mediaButtonSubtext, { color: theme.textTertiary }]}>Max 60 secondes depuis la galerie</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={theme.textTertiary} />
+              </AnimatedPressable>
+            </FadeInView>
           )}
 
-          <View style={[styles.descriptionCard, { backgroundColor: theme.card }]}>
-            <Text style={[styles.label, { color: theme.textSecondary }]}>DESCRIPTION</Text>
-            <TextInput
-              style={[
-                styles.descriptionInput,
-                { backgroundColor: theme.surfaceVariant, color: theme.text },
-              ]}
-              placeholder="Ajoutez une description... (optionnel)"
-              placeholderTextColor={theme.textTertiary}
-              multiline
-              maxLength={200}
-              value={description}
-              onChangeText={setDescription}
-            />
-            <Text style={[styles.charCount, { color: theme.textTertiary }]}>
-              {description.length}/200
-            </Text>
-          </View>
+          <FadeInView delay={200}>
+            <View style={[styles.descriptionCard, { backgroundColor: theme.card }]}>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>DESCRIPTION</Text>
+              <TextInput
+                style={[
+                  styles.descriptionInput,
+                  { backgroundColor: theme.surfaceVariant, color: theme.text },
+                ]}
+                placeholder="Ajoutez une description... (optionnel)"
+                placeholderTextColor={theme.textTertiary}
+                multiline
+                maxLength={200}
+                value={description}
+                onChangeText={setDescription}
+              />
+              <Text style={[styles.charCount, { color: theme.textTertiary }]}>
+                {description.length}/200
+              </Text>
+            </View>
+          </FadeInView>
 
-          <View style={[styles.infoBox, { backgroundColor: theme.primaryMuted }]}>
-            <Ionicons name="information-circle" size={22} color={theme.primary} />
-            <Text style={[styles.infoText, { color: theme.textSecondary }]}>
-              Votre Drop sera flouté jusqu'à la révélation de dimanche 20h. Seuls vos amis pourront le voir.
-            </Text>
-          </View>
+          <FadeInView delay={300}>
+            <View style={[styles.infoBox, { backgroundColor: theme.primaryMuted }]}>
+              <Ionicons name="information-circle" size={22} color={theme.primary} />
+              <Text style={[styles.infoText, { color: theme.textSecondary }]}>
+                Votre Drop sera floute jusqu'a la revelation de dimanche 20h. Seuls vos amis pourront le voir.
+              </Text>
+            </View>
+          </FadeInView>
+
+          {uploadProgress ? (
+            <View style={styles.progressContainer}>
+              <ActivityIndicator size="small" color={theme.primary} />
+              <Text style={[styles.progressText, { color: theme.textSecondary }]}>{uploadProgress}</Text>
+            </View>
+          ) : null}
 
           <Button
-            title={media ? "Publier le Drop" : "Sélectionnez une photo"}
+            title={media ? (media.type === 'video' ? "Publier la Video" : "Publier la Photo") : "Selectionnez un media"}
             onPress={handleSubmit}
             loading={loading}
             disabled={!media}
@@ -195,28 +314,12 @@ export default function CreateDropScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  flex: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 100,
-  },
-  header: {
-    marginBottom: 24,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-  },
-  headerSubtitle: {
-    fontSize: 15,
-    marginTop: 4,
-  },
+  container: { flex: 1 },
+  flex: { flex: 1 },
+  scrollContent: { padding: 20, paddingBottom: 100 },
+  header: { marginBottom: 24 },
+  headerTitle: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
+  headerSubtitle: { fontSize: 15, marginTop: 4 },
   previewContainer: {
     width: '100%',
     aspectRatio: 1,
@@ -224,10 +327,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 20,
   },
-  preview: {
-    width: '100%',
-    height: '100%',
-  },
+  preview: { width: '100%', height: '100%' },
   removeButton: {
     position: 'absolute',
     top: 12,
@@ -239,24 +339,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 2,
   },
+  mediaTypeBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  mediaTypeBadgeText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
   lockedOverlay: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 20,
+    padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-  lockedText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
+  lockedText: { fontSize: 14, fontWeight: '600' },
   mediaButtons: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 20,
+    marginBottom: 12,
   },
   mediaButton: {
     flex: 1,
@@ -272,14 +381,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 12,
   },
-  mediaButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
+  mediaButtonText: { fontSize: 15, fontWeight: '600' },
+  mediaButtonSubtext: { fontSize: 12, marginTop: 4, textAlign: 'center' },
+  videoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 20,
+    marginBottom: 20,
+    gap: 14,
   },
-  mediaButtonSubtext: {
-    fontSize: 13,
-    marginTop: 4,
+  videoIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  videoButtonTextContainer: { flex: 1 },
   descriptionCard: {
     borderRadius: 20,
     padding: 20,
@@ -308,12 +427,16 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     padding: 16,
     borderRadius: 14,
-    marginBottom: 24,
+    marginBottom: 16,
     gap: 12,
   },
-  infoText: {
-    flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
+  infoText: { flex: 1, fontSize: 14, lineHeight: 20 },
+  progressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 16,
   },
+  progressText: { fontSize: 14 },
 });

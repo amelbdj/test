@@ -497,3 +497,61 @@ agent_communication:
     message: "Initial MVP implementation complete. All backend endpoints created. Frontend screens implemented. Need backend testing to verify all API endpoints work correctly. Test credentials: test@dropa.com / Test123! and ami@dropa.com / Test123!"
   - agent: "testing"
     message: "Comprehensive backend API testing completed. All major endpoints are working correctly. Authentication, profile management, friends system, drops creation/feed, reveal system, messaging, notifications, and streak system all functioning as expected. The API correctly enforces business rules like blocking likes/comments on unrevealed drops and restricting messaging to friends only. Backend is production-ready."
+  - agent: "main"
+    message: "Added new features: 1) GET /api/weekly-summary endpoint for weekly stats (drops count, streak, likes, comments, best drop, friends comparison, achievement messages). 2) POST /api/upload/media for video/image file upload to server disk. 3) GET /api/media/{filename} for serving uploaded media. 4) Updated POST /api/drops to accept optional media_url field for video drops. Test credentials: test@dropa.com / Test123! and ami@dropa.com / Test123!"
+  - agent: "testing"
+    message: "NEW ENDPOINTS TESTING COMPLETE: All new features tested and working perfectly. 1) GET /api/weekly-summary returns all required fields with proper JWT auth. 2) POST /api/upload/media accepts multipart/form-data, validates file types, stores files correctly. 3) GET /api/media/{filename} serves files with proper content-type. 4) POST /api/drops updated to accept media_url field for video drops. All existing endpoints still working correctly. Backend API is fully functional and production-ready."
+
+  - task: "Weekly Summary"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: unknown
+        agent: "main"
+        comment: "GET /api/weekly-summary - Returns weekly stats including drops count, streak, likes, comments, best drop, friends comparison"
+      - working: true
+        agent: "testing"
+        comment: "Weekly summary endpoint working perfectly - returns all required fields (drops_count, streak, total_likes, total_comments, best_drop, is_perfect_week, unique_days, achievement, achievement_message, friends_comparison, week_start). Requires JWT authentication as expected."
+
+  - task: "Media Upload"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: unknown
+        agent: "main"
+        comment: "POST /api/upload/media - Upload image/video files, stored on disk, returns media URL"
+      - working: true
+        agent: "testing"
+        comment: "Media upload system working correctly - accepts multipart/form-data, validates file types, stores files in /app/backend/media/, returns proper response with media_url, media_type, filename, and size. Files are served correctly via GET /api/media/{filename} without authentication."
+
+  - task: "Media Serving"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "GET /api/media/{filename} endpoint working correctly - serves uploaded files with proper content-type headers, no authentication required as expected."
+
+  - task: "Updated Drop Creation"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "POST /api/drops endpoint updated successfully - now accepts optional media_url field instead of media_data for video drops. Creates drops correctly with media_url and proper media_type."

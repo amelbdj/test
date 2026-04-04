@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Video, ResizeMode } from 'expo-av';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/hooks/useTheme';
 import { apiClient } from '../../src/api/client';
@@ -109,6 +110,9 @@ export default function FeedScreen() {
         : `data:image/jpeg;base64,${item.media_data}`
       : undefined;
 
+    const mediaUrl = (item as any).media_url;
+    const isVideo = item.media_type === 'video';
+
     return (
       <StaggerItem index={index}>
         <View style={[styles.dropCard, { backgroundColor: theme.card }]}>
@@ -131,7 +135,16 @@ export default function FeedScreen() {
 
           <View style={styles.mediaContainer}>
             {item.is_revealed ? (
-              item.media_data ? (
+              isVideo && mediaUrl ? (
+                <Video
+                  source={{ uri: mediaUrl }}
+                  style={styles.media}
+                  resizeMode={ResizeMode.COVER}
+                  shouldPlay={false}
+                  isLooping
+                  useNativeControls
+                />
+              ) : imageUri ? (
                 <Image
                   source={{ uri: imageUri }}
                   style={styles.media}
@@ -147,6 +160,11 @@ export default function FeedScreen() {
                 imageUri={imageUri}
                 timeUntilReveal={formatTimeUntilReveal()}
               />
+            )}
+            {isVideo && item.is_revealed && (
+              <View style={styles.videoIndicator}>
+                <Ionicons name="videocam" size={14} color="#FFF" />
+              </View>
             )}
           </View>
 
@@ -254,7 +272,7 @@ export default function FeedScreen() {
             >
               <Ionicons name="time-outline" size={18} color="#FFFFFF" />
               <Text style={styles.revealBannerText}>
-                Prochaine révélation: Dimanche 20h
+                Prochaine revelation: Dimanche 20h
               </Text>
               <View style={styles.countdownBadge}>
                 <Text style={styles.countdownBadgeText}>{formatTimeUntilReveal()}</Text>
@@ -263,6 +281,24 @@ export default function FeedScreen() {
           </AnimatedPressable>
         </FadeInView>
       )}
+
+      <FadeInView delay={150}>
+        <AnimatedPressable
+          style={[styles.weeklySummaryButton, { backgroundColor: theme.card }]}
+          onPress={() => router.push('/weekly-summary')}
+          scaleValue={0.98}
+          haptic="light"
+        >
+          <View style={styles.weeklySummaryIcon}>
+            <Text style={{ fontSize: 20 }}>📊</Text>
+          </View>
+          <View style={styles.weeklySummaryTextContainer}>
+            <Text style={[styles.weeklySummaryTitle, { color: theme.text }]}>Resume Hebdo</Text>
+            <Text style={[styles.weeklySummarySubtitle, { color: theme.textTertiary }]}>Voir vos stats de la semaine</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.textTertiary} />
+        </AnimatedPressable>
+      </FadeInView>
 
       <FlatList
         data={drops}
@@ -488,4 +524,32 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
   },
+  videoIndicator: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  weeklySummaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 14,
+    borderRadius: 16,
+    gap: 12,
+  },
+  weeklySummaryIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weeklySummaryTextContainer: { flex: 1 },
+  weeklySummaryTitle: { fontSize: 15, fontWeight: '600' },
+  weeklySummarySubtitle: { fontSize: 12, marginTop: 1 },
 });
