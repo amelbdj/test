@@ -17,16 +17,24 @@ from bson import ObjectId
 import base64
 import shutil
 import httpx
+from imagekitio import ImageKit as ImageKitSDK
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# Media storage directory
+# Media storage directory (fallback for local files)
 MEDIA_DIR = ROOT_DIR / 'media'
 MEDIA_DIR.mkdir(exist_ok=True)
 
 # Expo Push Notification URL
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
+
+# ImageKit Configuration
+IMAGEKIT_PRIVATE_KEY = os.getenv('IMAGEKIT_PRIVATE_KEY', '')
+IMAGEKIT_PUBLIC_KEY = os.getenv('IMAGEKIT_PUBLIC_KEY', '')
+IMAGEKIT_URL_ENDPOINT = os.getenv('IMAGEKIT_URL_ENDPOINT', '')
+
+imagekit = None  # Initialized after logger
 
 # JWT Configuration
 JWT_SECRET = os.getenv('JWT_SECRET', 'dropa-super-secret-key-change-in-production')
@@ -53,6 +61,17 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Initialize ImageKit after logger
+if IMAGEKIT_PRIVATE_KEY:
+    try:
+        imagekit = ImageKitSDK(private_key=IMAGEKIT_PRIVATE_KEY)
+        logger.info("ImageKit initialized successfully")
+    except Exception as e:
+        logger.error(f"ImageKit init error: {e}")
+        imagekit = None
+else:
+    logger.warning("ImageKit credentials not found, using local storage")
 
 # Helper to convert ObjectId to string
 def serialize_doc(doc):
@@ -249,6 +268,39 @@ async def send_push_notification(user_id: str, title: str, body: str, data: dict
     except Exception as e:
         logger.error(f"Push notification error: {e}")
 
+# ==================== IMAGEKIT HELPER ====================
+
+def upload_to_imagekit(file_data, filename: str, folder: str = "/drops") -> dict:
+    """Upload a file to ImageKit and return the URL and file_id"""
+    if not imagekit:
+        return None
+    
+    try:
+        # file_data must be bytes
+        if isinstance(file_data, str):
+            # If it's a base64 string, decode it
+            if file_data.startswith('data:'):
+                # Remove data:image/xxx;base64, prefix
+                file_data = file_data.split(',', 1)[1]
+            file_data = base64.b64decode(file_data)
+        
+        result = imagekit.files.upload(
+            file=file_data,
+            file_name=filename,
+            folder=folder,
+        )
+        
+        if hasattr(result, 'url') and result.url:
+            return {
+                'url': result.url,
+                'file_id': result.file_id,
+                'name': result.name,
+            }
+        return None
+    except Exception as e:
+        logger.error(f"ImageKit upload error: {e}")
+        return None
+
 # ==================== REVEAL LOGIC ====================
 
 def get_next_reveal_date() -> datetime:
@@ -374,7 +426,17 @@ async def update_profile(update_data: UserProfileUpdate, current_user: dict = De
         update_fields['bio'] = update_data.bio
     
     if update_data.profile_picture is not None:
-        update_fields['profile_picture'] = update_data.profile_picture
+        # Upload to ImageKit if available
+        if imagekit and update_data.profile_picture.startswith('data:'):
+            filename = f"avatar_{current_user['id']}.jpg"
+            ik_result = upload_to_imagekit(update_data.profile_picture, filename, folder="/avatars")
+            if ik_result:
+                update_fields['profile_picture'] = ik_result['url']
+                logger.info(f"Avatar uploaded to ImageKit: {ik_result['url']}")
+            else:
+                update_fields['profile_picture'] = update_data.profile_picture
+        else:
+            update_fields['profile_picture'] = update_data.profile_picture
     
     if update_fields:
         await db.users.update_one(
@@ -630,12 +692,30 @@ async def remove_friend(friend_id: str, current_user: dict = Depends(get_current
 async def create_drop(drop_data: DropCreate, current_user: dict = Depends(get_current_user)):
     reveal_date = get_next_reveal_date()
     
+    media_url = drop_data.media_url
+    media_data_to_store = ''
+    
+    # Upload image to ImageKit if base64 provided
+    if drop_data.media_data and imagekit:
+        filename = f"drop_{uuid.uuid4()}.jpg"
+        ik_result = upload_to_imagekit(drop_data.media_data, filename, folder="/drops")
+        if ik_result:
+            media_url = ik_result['url']
+            logger.info(f"Image uploaded to ImageKit: {media_url}")
+        else:
+            # Fallback: store base64 in MongoDB
+            media_data_to_store = drop_data.media_data
+            logger.warning("ImageKit upload failed, falling back to base64")
+    elif drop_data.media_data:
+        # No ImageKit, store base64
+        media_data_to_store = drop_data.media_data
+    
     drop_doc = {
         'user_id': current_user['id'],
         'username': current_user['username'],
         'user_profile_picture': current_user.get('profile_picture'),
-        'media_data': drop_data.media_data or '',
-        'media_url': drop_data.media_url,
+        'media_data': media_data_to_store,
+        'media_url': media_url,
         'media_type': drop_data.media_type,
         'description': drop_data.description or '',
         'reveal_date': reveal_date.isoformat(),
@@ -1386,7 +1466,7 @@ async def upload_media(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user)
 ):
-    """Upload a media file (image or video) and return the URL"""
+    """Upload a media file (image or video) to ImageKit cloud"""
     # Validate file type
     allowed_types = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/quicktime', 'video/webm']
     if file.content_type not in allowed_types:
@@ -1395,7 +1475,7 @@ async def upload_media(
     # Max 50MB
     max_size = 50 * 1024 * 1024
     
-    # Generate unique filename
+    # Determine media type
     ext = file.filename.split('.')[-1] if file.filename and '.' in file.filename else 'bin'
     if file.content_type and file.content_type.startswith('video'):
         media_type = 'video'
@@ -1404,21 +1484,30 @@ async def upload_media(
         media_type = 'image'
         ext = ext if ext in ['jpg', 'jpeg', 'png', 'webp', 'gif'] else 'jpg'
     
-    filename = f"{uuid.uuid4()}.{ext}"
-    filepath = MEDIA_DIR / filename
+    filename = f"{media_type}_{uuid.uuid4()}.{ext}"
     
-    # Save file
-    total_size = 0
+    # Read file content
+    file_content = await file.read()
+    if len(file_content) > max_size:
+        raise HTTPException(status_code=400, detail="Fichier trop volumineux (max 50MB)")
+    
+    # Try ImageKit upload first
+    if imagekit:
+        folder = '/videos' if media_type == 'video' else '/drops'
+        ik_result = upload_to_imagekit(file_content, filename, folder=folder)
+        if ik_result:
+            return {
+                'media_url': ik_result['url'],
+                'media_type': media_type,
+                'filename': ik_result['name'],
+                'size': len(file_content),
+                'storage': 'imagekit'
+            }
+    
+    # Fallback to local storage
+    filepath = MEDIA_DIR / filename
     with open(filepath, 'wb') as f:
-        while True:
-            chunk = await file.read(1024 * 1024)  # 1MB chunks
-            if not chunk:
-                break
-            total_size += len(chunk)
-            if total_size > max_size:
-                filepath.unlink(exist_ok=True)
-                raise HTTPException(status_code=400, detail="Fichier trop volumineux (max 50MB)")
-            f.write(chunk)
+        f.write(file_content)
     
     media_url = f"/api/media/{filename}"
     
@@ -1426,7 +1515,8 @@ async def upload_media(
         'media_url': media_url,
         'media_type': media_type,
         'filename': filename,
-        'size': total_size
+        'size': len(file_content),
+        'storage': 'local'
     }
 
 @api_router.get("/media/{filename}")

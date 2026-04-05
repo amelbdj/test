@@ -106,13 +106,16 @@ export default function FeedScreen() {
       locale: fr,
     });
 
-    const imageUri = item.media_data
-      ? item.media_data.startsWith('data:')
-        ? item.media_data
-        : `data:image/jpeg;base64,${item.media_data}`
-      : undefined;
+    // Resolve image URI: prefer media_url (ImageKit), fallback to base64
+    const mediaUrl = item.media_url;
+    const imageUri = mediaUrl
+      ? mediaUrl
+      : item.media_data
+        ? item.media_data.startsWith('data:')
+          ? item.media_data
+          : `data:image/jpeg;base64,${item.media_data}`
+        : undefined;
 
-    const mediaUrl = (item as any).media_url;
     const isVideo = item.media_type === 'video';
 
     return (
@@ -137,9 +140,9 @@ export default function FeedScreen() {
 
           <View style={styles.mediaContainer}>
             {item.is_revealed ? (
-              isVideo && mediaUrl ? (
+              isVideo && imageUri ? (
                 <Video
-                  source={{ uri: mediaUrl }}
+                  source={{ uri: imageUri }}
                   style={styles.media}
                   resizeMode={ResizeMode.COVER}
                   shouldPlay={false}

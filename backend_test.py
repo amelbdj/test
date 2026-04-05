@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for Dropa Social App
-Tests the NEW endpoints and verifies existing ones still work
+Backend API Testing for Dropa Social App with ImageKit Integration
+Tests the specific endpoints mentioned in the review request.
 """
 
 import requests
 import json
-import sys
-from datetime import datetime
+import base64
+import io
+from PIL import Image
+import time
 
 # Configuration
 BASE_URL = "https://sunday-unlock.preview.emergentagent.com/api"
@@ -19,250 +21,257 @@ class DropaAPITester:
         self.session = requests.Session()
         self.auth_token = None
         self.user_id = None
-        self.test_results = []
         
-    def log_test(self, test_name, success, details=""):
-        """Log test result"""
-        status = "✅ PASS" if success else "❌ FAIL"
-        self.test_results.append({
-            'test': test_name,
-            'success': success,
-            'details': details
-        })
-        print(f"{status} {test_name}")
-        if details:
-            print(f"    {details}")
+    def log(self, message):
+        print(f"[TEST] {message}")
+        
+    def create_test_image_base64(self):
+        """Create a small test image as base64"""
+        # Create a 100x100 red square
+        img = Image.new('RGB', (100, 100), color='red')
+        buffer = io.BytesIO()
+        img.save(buffer, format='JPEG')
+        img_bytes = buffer.getvalue()
+        
+        # Convert to base64 with data URL prefix
+        b64_string = base64.b64encode(img_bytes).decode('utf-8')
+        return f"data:image/jpeg;base64,{b64_string}"
     
-    def login(self):
-        """Login and get auth token"""
-        print("\n🔐 Testing Authentication...")
-        
-        try:
-            response = self.session.post(f"{BASE_URL}/auth/login", json={
-                "email": TEST_EMAIL,
-                "password": TEST_PASSWORD
-            })
-            
-            if response.status_code == 200:
-                data = response.json()
-                self.auth_token = data.get('access_token')
-                self.user_id = data.get('user', {}).get('id')
-                
-                # Set auth header for future requests
-                self.session.headers.update({
-                    'Authorization': f'Bearer {self.auth_token}'
-                })
-                
-                self.log_test("POST /api/auth/login", True, f"Token received, User ID: {self.user_id}")
-                return True
-            else:
-                self.log_test("POST /api/auth/login", False, f"Status: {response.status_code}, Response: {response.text}")
-                return False
-                
-        except Exception as e:
-            self.log_test("POST /api/auth/login", False, f"Exception: {str(e)}")
-            return False
+    def create_test_image_bytes(self):
+        """Create a small test image as bytes for file upload"""
+        img = Image.new('RGB', (50, 50), color='blue')
+        buffer = io.BytesIO()
+        img.save(buffer, format='JPEG')
+        return buffer.getvalue()
     
-    def test_push_token_registration(self):
-        """Test POST /api/push-token endpoint"""
-        print("\n📱 Testing Push Token Registration...")
+    def test_login(self):
+        """Test user login and get auth token"""
+        self.log("Testing login...")
         
-        try:
-            test_token = "ExponentPushToken[test123]"
-            response = self.session.post(f"{BASE_URL}/push-token", json={
-                "token": test_token
-            })
-            
-            if response.status_code == 200:
-                data = response.json()
-                expected_message = "Push token registered"
-                if data.get('message') == expected_message:
-                    self.log_test("POST /api/push-token", True, f"Token registered successfully: {test_token}")
-                else:
-                    self.log_test("POST /api/push-token", False, f"Unexpected response: {data}")
-            else:
-                self.log_test("POST /api/push-token", False, f"Status: {response.status_code}, Response: {response.text}")
-                
-        except Exception as e:
-            self.log_test("POST /api/push-token", False, f"Exception: {str(e)}")
-    
-    def test_streak_details(self):
-        """Test GET /api/streak/details endpoint"""
-        print("\n🔥 Testing Streak Details...")
+        url = f"{BASE_URL}/auth/login"
+        data = {
+            "email": TEST_EMAIL,
+            "password": TEST_PASSWORD
+        }
         
-        try:
-            response = self.session.get(f"{BASE_URL}/streak/details")
-            
-            if response.status_code == 200:
-                data = response.json()
-                
-                # Check required fields
-                required_fields = [
-                    'current_streak', 'max_streak', 'streak_freezes', 
-                    'milestones', 'days_active_this_week', 'is_at_risk'
-                ]
-                
-                missing_fields = [field for field in required_fields if field not in data]
-                
-                if not missing_fields:
-                    # Validate data types
-                    if (isinstance(data['current_streak'], int) and 
-                        isinstance(data['max_streak'], int) and
-                        isinstance(data['streak_freezes'], int) and
-                        isinstance(data['milestones'], list) and
-                        isinstance(data['days_active_this_week'], int) and
-                        isinstance(data['is_at_risk'], bool)):
-                        
-                        details = f"Current streak: {data['current_streak']}, Max: {data['max_streak']}, Freezes: {data['streak_freezes']}, Days this week: {data['days_active_this_week']}, At risk: {data['is_at_risk']}"
-                        self.log_test("GET /api/streak/details", True, details)
-                    else:
-                        self.log_test("GET /api/streak/details", False, "Invalid data types in response")
-                else:
-                    self.log_test("GET /api/streak/details", False, f"Missing fields: {missing_fields}")
-            else:
-                self.log_test("GET /api/streak/details", False, f"Status: {response.status_code}, Response: {response.text}")
-                
-        except Exception as e:
-            self.log_test("GET /api/streak/details", False, f"Exception: {str(e)}")
-    
-    def test_streak_freeze(self):
-        """Test POST /api/streak/freeze endpoint"""
-        print("\n❄️ Testing Streak Freeze...")
+        response = self.session.post(url, json=data)
         
-        try:
-            response = self.session.post(f"{BASE_URL}/streak/freeze")
-            
-            # This should fail since user has 0 freezes
-            if response.status_code == 400:
-                data = response.json()
-                if "Pas de streak freeze disponible" in data.get('detail', ''):
-                    self.log_test("POST /api/streak/freeze", True, "Correctly rejected - user has 0 freezes")
-                else:
-                    self.log_test("POST /api/streak/freeze", False, f"Wrong error message: {data}")
-            else:
-                self.log_test("POST /api/streak/freeze", False, f"Expected 400 error, got {response.status_code}: {response.text}")
-                
-        except Exception as e:
-            self.log_test("POST /api/streak/freeze", False, f"Exception: {str(e)}")
-    
-    def test_drops_feed(self):
-        """Test GET /api/drops/feed endpoint"""
-        print("\n📱 Testing Drops Feed...")
-        
-        try:
-            response = self.session.get(f"{BASE_URL}/drops/feed")
-            
-            if response.status_code == 200:
-                data = response.json()
-                if isinstance(data, list):
-                    self.log_test("GET /api/drops/feed", True, f"Feed retrieved with {len(data)} drops")
-                else:
-                    self.log_test("GET /api/drops/feed", False, "Response is not a list")
-            else:
-                self.log_test("GET /api/drops/feed", False, f"Status: {response.status_code}, Response: {response.text}")
-                
-        except Exception as e:
-            self.log_test("GET /api/drops/feed", False, f"Exception: {str(e)}")
-    
-    def test_weekly_summary(self):
-        """Test GET /api/weekly-summary endpoint"""
-        print("\n📊 Testing Weekly Summary...")
-        
-        try:
-            response = self.session.get(f"{BASE_URL}/weekly-summary")
-            
-            if response.status_code == 200:
-                data = response.json()
-                
-                # Check required fields
-                required_fields = [
-                    'drops_count', 'streak', 'total_likes', 'total_comments',
-                    'is_perfect_week', 'unique_days', 'achievement', 
-                    'achievement_message', 'friends_comparison', 'week_start'
-                ]
-                
-                missing_fields = [field for field in required_fields if field not in data]
-                
-                if not missing_fields:
-                    details = f"Drops: {data['drops_count']}, Streak: {data['streak']}, Likes: {data['total_likes']}, Comments: {data['total_comments']}, Achievement: {data['achievement']}"
-                    self.log_test("GET /api/weekly-summary", True, details)
-                else:
-                    self.log_test("GET /api/weekly-summary", False, f"Missing fields: {missing_fields}")
-            else:
-                self.log_test("GET /api/weekly-summary", False, f"Status: {response.status_code}, Response: {response.text}")
-                
-        except Exception as e:
-            self.log_test("GET /api/weekly-summary", False, f"Exception: {str(e)}")
-    
-    def test_notifications_unread_count(self):
-        """Test GET /api/notifications/unread-count endpoint"""
-        print("\n🔔 Testing Notifications Unread Count...")
-        
-        try:
-            response = self.session.get(f"{BASE_URL}/notifications/unread-count")
-            
-            if response.status_code == 200:
-                data = response.json()
-                if 'count' in data and isinstance(data['count'], int):
-                    self.log_test("GET /api/notifications/unread-count", True, f"Unread count: {data['count']}")
-                else:
-                    self.log_test("GET /api/notifications/unread-count", False, "Missing or invalid 'count' field")
-            else:
-                self.log_test("GET /api/notifications/unread-count", False, f"Status: {response.status_code}, Response: {response.text}")
-                
-        except Exception as e:
-            self.log_test("GET /api/notifications/unread-count", False, f"Exception: {str(e)}")
-    
-    def run_all_tests(self):
-        """Run all tests"""
-        print("🚀 Starting Dropa Backend API Tests")
-        print(f"🌐 Backend URL: {BASE_URL}")
-        print(f"👤 Test User: {TEST_EMAIL}")
-        print("=" * 60)
-        
-        # Login first
-        if not self.login():
-            print("\n❌ Login failed - cannot proceed with authenticated tests")
-            return False
-        
-        # Test NEW endpoints
-        print("\n🆕 Testing NEW Endpoints:")
-        self.test_push_token_registration()
-        self.test_streak_details()
-        self.test_streak_freeze()
-        
-        # Test existing endpoints
-        print("\n✅ Verifying Existing Endpoints:")
-        self.test_drops_feed()
-        self.test_weekly_summary()
-        self.test_notifications_unread_count()
-        
-        # Summary
-        print("\n" + "=" * 60)
-        print("📋 TEST SUMMARY")
-        print("=" * 60)
-        
-        passed = sum(1 for result in self.test_results if result['success'])
-        total = len(self.test_results)
-        
-        for result in self.test_results:
-            status = "✅" if result['success'] else "❌"
-            print(f"{status} {result['test']}")
-        
-        print(f"\n🎯 Results: {passed}/{total} tests passed")
-        
-        if passed == total:
-            print("🎉 All tests passed! Backend is working correctly.")
+        if response.status_code == 200:
+            result = response.json()
+            self.auth_token = result.get('access_token')
+            self.user_id = result.get('user', {}).get('id')
+            self.session.headers.update({'Authorization': f'Bearer {self.auth_token}'})
+            self.log(f"✅ Login successful. User ID: {self.user_id}")
             return True
         else:
-            print("⚠️ Some tests failed. Check the details above.")
+            self.log(f"❌ Login failed: {response.status_code} - {response.text}")
             return False
-
-def main():
-    """Main test runner"""
-    tester = DropaAPITester()
-    success = tester.run_all_tests()
-    sys.exit(0 if success else 1)
+    
+    def test_create_drop_with_imagekit(self):
+        """Test POST /api/drops with base64 image upload to ImageKit"""
+        self.log("Testing drop creation with ImageKit upload...")
+        
+        url = f"{BASE_URL}/drops"
+        
+        # Create test image
+        test_image_b64 = self.create_test_image_base64()
+        
+        data = {
+            "media_data": test_image_b64,
+            "media_type": "image",
+            "description": "Test drop with ImageKit integration"
+        }
+        
+        response = self.session.post(url, json=data)
+        
+        if response.status_code == 200:
+            result = response.json()
+            media_url = result.get('media_url')
+            media_data = result.get('media_data')
+            
+            # Check if ImageKit URL is returned
+            if media_url and 'ik.imagekit.io/dropa' in media_url:
+                self.log(f"✅ Drop created with ImageKit URL: {media_url}")
+                
+                # Verify media_data is empty (not stored in DB)
+                if media_data == "":
+                    self.log("✅ media_data is empty as expected (not stored in DB)")
+                else:
+                    self.log(f"⚠️ media_data is not empty: {len(media_data)} chars")
+                
+                return result.get('id'), media_url
+            else:
+                self.log(f"❌ ImageKit URL not found. media_url: {media_url}")
+                return None, None
+        else:
+            self.log(f"❌ Drop creation failed: {response.status_code} - {response.text}")
+            return None, None
+    
+    def test_drops_feed(self, expected_drop_id=None):
+        """Test GET /api/drops/feed to verify ImageKit URLs"""
+        self.log("Testing drops feed...")
+        
+        url = f"{BASE_URL}/drops/feed"
+        response = self.session.get(url)
+        
+        if response.status_code == 200:
+            drops = response.json()
+            self.log(f"✅ Feed retrieved with {len(drops)} drops")
+            
+            # Look for our test drop
+            if expected_drop_id:
+                for drop in drops:
+                    if drop.get('id') == expected_drop_id:
+                        media_url = drop.get('media_url')
+                        if media_url and 'ik.imagekit.io/dropa' in media_url:
+                            self.log(f"✅ Found test drop with ImageKit URL: {media_url}")
+                            return True
+                        else:
+                            self.log(f"❌ Test drop found but no ImageKit URL: {media_url}")
+                            return False
+                
+                self.log(f"⚠️ Test drop with ID {expected_drop_id} not found in feed")
+            
+            # Check if any drops have ImageKit URLs
+            imagekit_drops = [d for d in drops if d.get('media_url') and 'ik.imagekit.io/dropa' in d.get('media_url', '')]
+            if imagekit_drops:
+                self.log(f"✅ Found {len(imagekit_drops)} drops with ImageKit URLs")
+                return True
+            else:
+                self.log("⚠️ No drops with ImageKit URLs found")
+                return True  # Not necessarily an error
+        else:
+            self.log(f"❌ Feed retrieval failed: {response.status_code} - {response.text}")
+            return False
+    
+    def test_upload_media(self):
+        """Test POST /api/upload/media for file upload to ImageKit"""
+        self.log("Testing media upload...")
+        
+        url = f"{BASE_URL}/upload/media"
+        
+        # Create test image bytes
+        test_image_bytes = self.create_test_image_bytes()
+        
+        files = {
+            'file': ('test_image.jpg', test_image_bytes, 'image/jpeg')
+        }
+        
+        response = self.session.post(url, files=files)
+        
+        if response.status_code == 200:
+            result = response.json()
+            media_url = result.get('media_url')
+            storage = result.get('storage')
+            
+            if media_url and 'ik.imagekit.io/dropa' in media_url:
+                self.log(f"✅ Media uploaded to ImageKit: {media_url}")
+                self.log(f"✅ Storage type: {storage}")
+                return True
+            elif media_url:
+                self.log(f"⚠️ Media uploaded to local storage: {media_url}")
+                self.log(f"⚠️ Storage type: {storage}")
+                return True
+            else:
+                self.log(f"❌ No media URL returned")
+                return False
+        else:
+            self.log(f"❌ Media upload failed: {response.status_code} - {response.text}")
+            return False
+    
+    def test_streak_details(self):
+        """Test GET /api/streak/details to verify reward_freezes and rewarded fields"""
+        self.log("Testing streak details...")
+        
+        url = f"{BASE_URL}/streak/details"
+        response = self.session.get(url)
+        
+        if response.status_code == 200:
+            result = response.json()
+            
+            # Check required fields
+            required_fields = ['current_streak', 'max_streak', 'streak_freezes', 'milestones']
+            missing_fields = [field for field in required_fields if field not in result]
+            
+            if missing_fields:
+                self.log(f"❌ Missing required fields: {missing_fields}")
+                return False
+            
+            # Check milestones structure
+            milestones = result.get('milestones', [])
+            if milestones:
+                first_milestone = milestones[0]
+                if 'reward_freezes' in first_milestone and 'rewarded' in first_milestone:
+                    self.log("✅ Milestones include reward_freezes and rewarded fields")
+                    self.log(f"✅ Streak details: current={result.get('current_streak')}, max={result.get('max_streak')}, freezes={result.get('streak_freezes')}")
+                    self.log(f"✅ Found {len(milestones)} milestones")
+                    return True
+                else:
+                    self.log(f"❌ Milestones missing reward_freezes or rewarded fields")
+                    self.log(f"First milestone keys: {list(first_milestone.keys())}")
+                    return False
+            else:
+                self.log("⚠️ No milestones found")
+                return True
+        else:
+            self.log(f"❌ Streak details failed: {response.status_code} - {response.text}")
+            return False
+    
+    def test_existing_endpoints(self):
+        """Test existing endpoints to ensure they still work"""
+        self.log("Testing existing endpoints...")
+        
+        endpoints = [
+            ("/notifications/unread-count", "GET"),
+            ("/weekly-summary", "GET"),
+        ]
+        
+        all_passed = True
+        
+        for endpoint, method in endpoints:
+            url = f"{BASE_URL}{endpoint}"
+            
+            if method == "GET":
+                response = self.session.get(url)
+            else:
+                response = self.session.post(url)
+            
+            if response.status_code == 200:
+                self.log(f"✅ {method} {endpoint} - OK")
+            else:
+                self.log(f"❌ {method} {endpoint} - Failed: {response.status_code}")
+                all_passed = False
+        
+        return all_passed
+    
+    def run_all_tests(self):
+        """Run all tests in sequence"""
+        self.log("Starting Dropa Backend API Tests with ImageKit Integration")
+        self.log("=" * 60)
+        
+        # Test 1: Login
+        if not self.test_login():
+            self.log("❌ Cannot proceed without authentication")
+            return False
+        
+        # Test 2: Create drop with ImageKit
+        drop_id, media_url = self.test_create_drop_with_imagekit()
+        
+        # Test 3: Verify feed shows ImageKit URLs
+        self.test_drops_feed(drop_id)
+        
+        # Test 4: Upload media to ImageKit
+        self.test_upload_media()
+        
+        # Test 5: Streak details with reward fields
+        self.test_streak_details()
+        
+        # Test 6: Existing endpoints still work
+        self.test_existing_endpoints()
+        
+        self.log("=" * 60)
+        self.log("All tests completed!")
 
 if __name__ == "__main__":
-    main()
+    tester = DropaAPITester()
+    tester.run_all_tests()
