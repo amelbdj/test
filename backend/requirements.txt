@@ -19,3 +19,4 @@ pydantic
 huggingface_hub
 litellm
 pytest
+PyJWT
