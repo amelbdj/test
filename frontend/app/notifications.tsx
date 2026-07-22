@@ -99,6 +99,7 @@ export default function NotificationsScreen() {
           style={[
             styles.notificationCard,
             { backgroundColor: item.read ? theme.card : theme.surfaceVariant },
+            theme.elevation.sm,
           ]}
           onPress={() => handleNotificationPress(item)}
           scaleValue={0.98}

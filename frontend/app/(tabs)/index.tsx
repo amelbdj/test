@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Video, ResizeMode } from 'expo-av';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../src/hooks/useTheme';
 import { apiClient } from '../../src/api/client';
 import { Drop, RevealStatus } from '../../src/types';
@@ -24,6 +24,7 @@ import { BlurredDrop } from '../../src/components/BlurredDrop';
 import { AnimatedPressable, AnimatedLikeButton, FadeInView, StaggerItem } from '../../src/components/Animations';
 import { RevealAnimation } from '../../src/components/RevealAnimation';
 import { usePushNotifications } from '../../src/hooks/usePushNotifications';
+import { resolveMediaUri } from '../../src/utils/media';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -32,6 +33,7 @@ const { width } = Dimensions.get('window');
 export default function FeedScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const params = useLocalSearchParams<{ dropCreated?: string }>();
   const { notification } = usePushNotifications();
   const [drops, setDrops] = useState<Drop[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,6 +41,16 @@ export default function FeedScreen() {
   const [revealStatus, setRevealStatus] = useState<RevealStatus | null>(null);
   const [showReveal, setShowReveal] = useState(false);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
+  const [showDropCreatedBanner, setShowDropCreatedBanner] = useState(false);
+
+  useEffect(() => {
+    if (params.dropCreated) {
+      setShowDropCreatedBanner(true);
+      router.setParams({ dropCreated: undefined });
+      const timer = setTimeout(() => setShowDropCreatedBanner(false), 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [params.dropCreated]);
 
   const fetchFeed = async () => {
     try {
@@ -107,20 +119,13 @@ export default function FeedScreen() {
     });
 
     // Resolve image URI: prefer media_url (ImageKit), fallback to base64
-    const mediaUrl = item.media_url;
-    const imageUri = mediaUrl
-      ? mediaUrl
-      : item.media_data
-        ? item.media_data.startsWith('data:')
-          ? item.media_data
-          : `data:image/jpeg;base64,${item.media_data}`
-        : undefined;
+    const imageUri = resolveMediaUri(item.media_url, item.media_data);
 
     const isVideo = item.media_type === 'video';
 
     return (
       <StaggerItem index={index}>
-        <View style={[styles.dropCard, { backgroundColor: theme.card }]}>
+        <View style={[styles.dropCard, { backgroundColor: theme.card, borderColor: theme.borderLight }, theme.elevation.md]}>
           <View style={styles.dropHeader}>
             <AnimatedPressable style={styles.userInfo} haptic="light">
               <Avatar source={item.user_profile_picture} name={item.username} size={44} />
@@ -266,6 +271,15 @@ export default function FeedScreen() {
         </View>
       </FadeInView>
 
+      {showDropCreatedBanner && (
+        <FadeInView>
+          <View style={[styles.dropCreatedBanner, { backgroundColor: theme.success || '#10B981' }]}>
+            <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+            <Text style={styles.dropCreatedBannerText}>Drop publié !</Text>
+          </View>
+        </FadeInView>
+      )}
+
       {revealStatus && !revealStatus.is_reveal_time && (
         <FadeInView delay={100}>
           <AnimatedPressable scaleValue={0.98}>
@@ -273,7 +287,7 @@ export default function FeedScreen() {
               colors={[theme.gradientStart, theme.gradientEnd]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
-              style={styles.revealBanner}
+              style={[styles.revealBanner, theme.elevation.glow, { shadowColor: theme.primary }]}
             >
               <Ionicons name="time-outline" size={18} color="#FFFFFF" />
               <Text style={styles.revealBannerText}>
@@ -289,12 +303,12 @@ export default function FeedScreen() {
 
       <FadeInView delay={150}>
         <AnimatedPressable
-          style={[styles.weeklySummaryButton, { backgroundColor: theme.card }]}
+          style={[styles.weeklySummaryButton, { backgroundColor: theme.card, borderColor: theme.borderLight }, theme.elevation.sm]}
           onPress={() => router.push('/weekly-summary')}
           scaleValue={0.98}
           haptic="light"
         >
-          <View style={styles.weeklySummaryIcon}>
+          <View style={[styles.weeklySummaryIcon, { backgroundColor: theme.primaryMuted }]}>
             <Text style={{ fontSize: 20 }}>📊</Text>
           </View>
           <View style={styles.weeklySummaryTextContainer}>
@@ -394,6 +408,22 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
   },
+  dropCreatedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    marginHorizontal: 20,
+    marginBottom: 8,
+    borderRadius: 14,
+    gap: 8,
+  },
+  dropCreatedBannerText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+  },
   revealBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -426,9 +456,10 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   dropCard: {
-    borderRadius: 20,
+    borderRadius: 24,
     marginBottom: 20,
     overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
   },
   dropHeader: {
     flexDirection: 'row',
@@ -541,10 +572,11 @@ const styles = StyleSheet.create({
   weeklySummaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 16,
+    marginHorizontal: 20,
     marginBottom: 12,
     padding: 14,
-    borderRadius: 16,
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
     gap: 12,
   },
   weeklySummaryIcon: {

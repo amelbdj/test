@@ -1,19 +1,24 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo.errors import DuplicateKeyError
 import os
+import re
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, field_validator, model_validator
 from typing import List, Optional
 import uuid
 from datetime import datetime, timedelta, timezone
 import jwt
 import bcrypt
 from bson import ObjectId
+from bson.errors import InvalidId
 import base64
 import shutil
 import httpx
@@ -49,6 +54,20 @@ db = client[os.environ.get('DB_NAME', 'dropa_db')]
 # Create the main app
 app = FastAPI(title="Dropa API")
 
+# The frontend always reads `error.response.data.detail` as a plain string
+# (see authStore.ts). FastAPI's default handler for Pydantic validation
+# failures (422) instead returns `detail` as a *list* of error objects
+# ({type, loc, msg, input, ctx}), which crashes React when rendered directly
+# as text. Normalize it to a single human-readable string so every error
+# response has the same shape.
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc: RequestValidationError):
+    messages = []
+    for err in exc.errors():
+        loc = ".".join(str(part) for part in err["loc"] if part != "body")
+        messages.append(f"{loc}: {err['msg']}" if loc else err["msg"])
+    return JSONResponse(status_code=422, content={"detail": "; ".join(messages)})
+
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
@@ -80,12 +99,46 @@ def serialize_doc(doc):
     doc['id'] = str(doc.pop('_id'))
     return doc
 
+# Helper to safely parse a client-supplied id into an ObjectId.
+# Without this, a malformed id (e.g. from a tampered URL) raises an
+# uncaught bson.errors.InvalidId which bubbles up as a 500 error.
+def parse_object_id(id_str: str, field_name: str = "id") -> ObjectId:
+    try:
+        return ObjectId(id_str)
+    except (InvalidId, TypeError):
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name}")
+
+# Helper to build a UserProfile response from a serialized user dict.
+# Centralised so every auth/profile endpoint returns the exact same shape
+# (previously max_streak / streak_freezes were silently dropped from responses).
+def build_user_profile(user: dict) -> "UserProfile":
+    return UserProfile(
+        id=user['id'],
+        email=user['email'],
+        username=user['username'],
+        bio=user.get('bio', ''),
+        profile_picture=user.get('profile_picture'),
+        streak=user.get('streak', 0),
+        max_streak=user.get('max_streak', user.get('streak', 0)),
+        last_drop_date=user.get('last_drop_date'),
+        streak_freezes=user.get('streak_freezes', 0),
+        friends_count=len(user.get('friends', [])),
+        created_at=user['created_at'],
+    )
+
 # ==================== MODELS ====================
 
 class UserCreate(BaseModel):
     email: EmailStr
-    password: str
-    username: str
+    password: str = Field(..., min_length=6, max_length=128)  # matches frontend's advertised minimum
+    username: str = Field(..., min_length=3, max_length=20)
+
+    @field_validator('username')
+    @classmethod
+    def username_alnum(cls, v):
+        if not re.match(r'^[a-zA-Z0-9_.]+$', v):
+            raise ValueError('Username must contain only letters, numbers, "_" or "."')
+        return v
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -105,9 +158,16 @@ class UserProfile(BaseModel):
     created_at: str
 
 class UserProfileUpdate(BaseModel):
-    username: Optional[str] = None
-    bio: Optional[str] = None
+    username: Optional[str] = Field(default=None, min_length=3, max_length=20)
+    bio: Optional[str] = Field(default=None, max_length=300)
     profile_picture: Optional[str] = None  # base64
+
+    @field_validator('username')
+    @classmethod
+    def username_alnum(cls, v):
+        if v is not None and not re.match(r'^[a-zA-Z0-9_.]+$', v):
+            raise ValueError('Username must contain only letters, numbers, "_" or "."')
+        return v
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -127,7 +187,20 @@ class DropCreate(BaseModel):
     media_data: Optional[str] = None  # base64 (for images)
     media_url: Optional[str] = None   # URL from upload (for videos/large files)
     media_type: str  # image or video
-    description: Optional[str] = ""
+    description: Optional[str] = Field(default="", max_length=500)
+
+    @field_validator('media_type')
+    @classmethod
+    def media_type_valid(cls, v):
+        if v not in ('image', 'video'):
+            raise ValueError('media_type must be "image" or "video"')
+        return v
+
+    @model_validator(mode='after')
+    def media_required(self):
+        if not self.media_data and not self.media_url:
+            raise ValueError('A drop requires media_data or media_url')
+        return self
 
 class Drop(BaseModel):
     id: str
@@ -155,7 +228,14 @@ class Comment(BaseModel):
     created_at: str
 
 class CommentCreate(BaseModel):
-    content: str
+    content: str = Field(..., min_length=1, max_length=500)
+
+    @field_validator('content')
+    @classmethod
+    def not_blank(cls, v):
+        if not v.strip():
+            raise ValueError('Comment cannot be blank')
+        return v
 
 class Message(BaseModel):
     id: str
@@ -167,7 +247,14 @@ class Message(BaseModel):
     created_at: str
 
 class MessageCreate(BaseModel):
-    content: str
+    content: str = Field(..., min_length=1, max_length=2000)
+
+    @field_validator('content')
+    @classmethod
+    def not_blank(cls, v):
+        if not v.strip():
+            raise ValueError('Message cannot be blank')
+        return v
 
 class Conversation(BaseModel):
     id: str
@@ -344,25 +431,20 @@ async def register(user_data: UserCreate):
         'created_at': datetime.now(timezone.utc).isoformat()
     }
     
-    result = await db.users.insert_one(user_doc)
+    try:
+        result = await db.users.insert_one(user_doc)
+    except DuplicateKeyError:
+        # Backstop against a race between the existence checks above and the
+        # insert (two concurrent registrations with the same email/username).
+        raise HTTPException(status_code=400, detail="Email or username already taken")
     user_doc['_id'] = result.inserted_id
     user = serialize_doc(user_doc)
-    
+
     token = create_token(user['id'])
-    
+
     return TokenResponse(
         access_token=token,
-        user=UserProfile(
-            id=user['id'],
-            email=user['email'],
-            username=user['username'],
-            bio=user.get('bio', ''),
-            profile_picture=user.get('profile_picture'),
-            streak=user.get('streak', 0),
-            last_drop_date=user.get('last_drop_date'),
-            friends_count=len(user.get('friends', [])),
-            created_at=user['created_at']
-        )
+        user=build_user_profile(user)
     )
 
 @api_router.post("/auth/login", response_model=TokenResponse)
@@ -379,32 +461,12 @@ async def login(credentials: UserLogin):
     
     return TokenResponse(
         access_token=token,
-        user=UserProfile(
-            id=user['id'],
-            email=user['email'],
-            username=user['username'],
-            bio=user.get('bio', ''),
-            profile_picture=user.get('profile_picture'),
-            streak=user.get('streak', 0),
-            last_drop_date=user.get('last_drop_date'),
-            friends_count=len(user.get('friends', [])),
-            created_at=user['created_at']
-        )
+        user=build_user_profile(user)
     )
 
 @api_router.get("/auth/me", response_model=UserProfile)
 async def get_me(current_user: dict = Depends(get_current_user)):
-    return UserProfile(
-        id=current_user['id'],
-        email=current_user['email'],
-        username=current_user['username'],
-        bio=current_user.get('bio', ''),
-        profile_picture=current_user.get('profile_picture'),
-        streak=current_user.get('streak', 0),
-        last_drop_date=current_user.get('last_drop_date'),
-        friends_count=len(current_user.get('friends', [])),
-        created_at=current_user['created_at']
-    )
+    return build_user_profile(current_user)
 
 # ==================== PROFILE ENDPOINTS ====================
 
@@ -439,46 +501,34 @@ async def update_profile(update_data: UserProfileUpdate, current_user: dict = De
             update_fields['profile_picture'] = update_data.profile_picture
     
     if update_fields:
-        await db.users.update_one(
-            {'_id': ObjectId(current_user['id'])},
-            {'$set': update_fields}
-        )
+        try:
+            await db.users.update_one(
+                {'_id': ObjectId(current_user['id'])},
+                {'$set': update_fields}
+            )
+        except DuplicateKeyError:
+            raise HTTPException(status_code=400, detail="Username already taken")
     
     # Get updated user
     user = await db.users.find_one({'_id': ObjectId(current_user['id'])})
     user = serialize_doc(user)
     
-    return UserProfile(
-        id=user['id'],
-        email=user['email'],
-        username=user['username'],
-        bio=user.get('bio', ''),
-        profile_picture=user.get('profile_picture'),
-        streak=user.get('streak', 0),
-        last_drop_date=user.get('last_drop_date'),
-        friends_count=len(user.get('friends', [])),
-        created_at=user['created_at']
-    )
+    return build_user_profile(user)
 
 @api_router.get("/profile/{user_id}", response_model=UserProfile)
 async def get_profile(user_id: str, current_user: dict = Depends(get_current_user)):
-    user = await db.users.find_one({'_id': ObjectId(user_id)})
+    user = await db.users.find_one({'_id': parse_object_id(user_id, "user_id")})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     user = serialize_doc(user)
-    
-    return UserProfile(
-        id=user['id'],
-        email=user['email'],
-        username=user['username'],
-        bio=user.get('bio', ''),
-        profile_picture=user.get('profile_picture'),
-        streak=user.get('streak', 0),
-        last_drop_date=user.get('last_drop_date'),
-        friends_count=len(user.get('friends', [])),
-        created_at=user['created_at']
-    )
+    profile = build_user_profile(user)
+
+    # Don't leak another user's email address in their public profile
+    if profile.id != current_user['id']:
+        profile.email = ""
+
+    return profile
 
 # ==================== FRIENDS ENDPOINTS ====================
 
@@ -486,9 +536,10 @@ async def get_profile(user_id: str, current_user: dict = Depends(get_current_use
 async def search_users(q: str, current_user: dict = Depends(get_current_user)):
     if len(q) < 2:
         return []
-    
+
+    safe_q = re.escape(q.lower())
     users = await db.users.find({
-        'username': {'$regex': q.lower(), '$options': 'i'},
+        'username': {'$regex': safe_q, '$options': 'i'},
         '_id': {'$ne': ObjectId(current_user['id'])}
     }).limit(20).to_list(20)
     
@@ -519,9 +570,9 @@ async def search_users(q: str, current_user: dict = Depends(get_current_user)):
 async def send_friend_request(user_id: str, current_user: dict = Depends(get_current_user)):
     if user_id == current_user['id']:
         raise HTTPException(status_code=400, detail="Cannot send friend request to yourself")
-    
+
     # Check if user exists
-    target_user = await db.users.find_one({'_id': ObjectId(user_id)})
+    target_user = await db.users.find_one({'_id': parse_object_id(user_id, "user_id")})
     if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -596,14 +647,14 @@ async def get_friend_requests(current_user: dict = Depends(get_current_user)):
 @api_router.post("/friends/accept/{request_id}")
 async def accept_friend_request(request_id: str, current_user: dict = Depends(get_current_user)):
     request = await db.friend_requests.find_one({
-        '_id': ObjectId(request_id),
+        '_id': parse_object_id(request_id, "request_id"),
         'to_user_id': current_user['id'],
         'status': 'pending'
     })
-    
+
     if not request:
         raise HTTPException(status_code=404, detail="Friend request not found")
-    
+
     # Update request status
     await db.friend_requests.update_one(
         {'_id': ObjectId(request_id)},
@@ -637,14 +688,14 @@ async def accept_friend_request(request_id: str, current_user: dict = Depends(ge
 @api_router.post("/friends/reject/{request_id}")
 async def reject_friend_request(request_id: str, current_user: dict = Depends(get_current_user)):
     request = await db.friend_requests.find_one({
-        '_id': ObjectId(request_id),
+        '_id': parse_object_id(request_id, "request_id"),
         'to_user_id': current_user['id'],
         'status': 'pending'
     })
-    
+
     if not request:
         raise HTTPException(status_code=404, detail="Friend request not found")
-    
+
     await db.friend_requests.update_one(
         {'_id': ObjectId(request_id)},
         {'$set': {'status': 'rejected'}}
@@ -674,13 +725,14 @@ async def get_friends(current_user: dict = Depends(get_current_user)):
 
 @api_router.delete("/friends/{friend_id}")
 async def remove_friend(friend_id: str, current_user: dict = Depends(get_current_user)):
+    friend_oid = parse_object_id(friend_id, "friend_id")
     # Remove from both users' friends lists
     await db.users.update_one(
         {'_id': ObjectId(current_user['id'])},
         {'$pull': {'friends': friend_id}}
     )
     await db.users.update_one(
-        {'_id': ObjectId(friend_id)},
+        {'_id': friend_oid},
         {'$pull': {'friends': current_user['id']}}
     )
     
@@ -767,19 +819,30 @@ async def create_drop(drop_data: DropCreate, current_user: dict = Depends(get_cu
             {'$set': {'streak': 1, 'last_drop_date': today, 'max_streak': 1}}
         )
     
-    # Check milestone rewards
-    awarded_milestones = current_user.get('awarded_milestones', [])
+    # Check milestone rewards.
+    # The award is applied via a single atomic update_one whose filter requires
+    # the milestone to be absent from awarded_milestones. MongoDB guarantees
+    # single-document updates are atomic, so if two requests for the same user
+    # race (e.g. rapid double-tap or a retried request) only one of them can
+    # match the filter and actually award the freeze - the other's update_one
+    # matches zero documents and is a no-op. This replaces a previous
+    # read-then-write check that could double-award under concurrency.
     for milestone in STREAK_MILESTONES:
-        if new_streak >= milestone['days'] and milestone['days'] not in awarded_milestones:
-            # Award freeze reward!
+        if new_streak >= milestone['days']:
             reward = milestone['reward_freezes']
-            await db.users.update_one(
-                {'_id': ObjectId(current_user['id'])},
+            award_result = await db.users.update_one(
+                {
+                    '_id': ObjectId(current_user['id']),
+                    'awarded_milestones': {'$ne': milestone['days']}
+                },
                 {
                     '$inc': {'streak_freezes': reward},
                     '$push': {'awarded_milestones': milestone['days']}
                 }
             )
+            if award_result.modified_count == 0:
+                # Already awarded previously (or lost the race) - skip notification.
+                continue
             # Create celebration notification
             notif_doc = {
                 'user_id': current_user['id'],
@@ -890,7 +953,7 @@ async def get_user_drops(user_id: str, current_user: dict = Depends(get_current_
 
 @api_router.post("/drops/{drop_id}/like")
 async def like_drop(drop_id: str, current_user: dict = Depends(get_current_user)):
-    drop = await db.drops.find_one({'_id': ObjectId(drop_id)})
+    drop = await db.drops.find_one({'_id': parse_object_id(drop_id, "drop_id")})
     if not drop:
         raise HTTPException(status_code=404, detail="Drop not found")
     
@@ -937,7 +1000,7 @@ async def like_drop(drop_id: str, current_user: dict = Depends(get_current_user)
 
 @api_router.post("/drops/{drop_id}/comments", response_model=Comment)
 async def create_comment(drop_id: str, comment_data: CommentCreate, current_user: dict = Depends(get_current_user)):
-    drop = await db.drops.find_one({'_id': ObjectId(drop_id)})
+    drop = await db.drops.find_one({'_id': parse_object_id(drop_id, "drop_id")})
     if not drop:
         raise HTTPException(status_code=404, detail="Drop not found")
     
@@ -990,7 +1053,7 @@ async def create_comment(drop_id: str, comment_data: CommentCreate, current_user
 
 @api_router.get("/drops/{drop_id}/comments", response_model=List[Comment])
 async def get_comments(drop_id: str, current_user: dict = Depends(get_current_user)):
-    drop = await db.drops.find_one({'_id': ObjectId(drop_id)})
+    drop = await db.drops.find_one({'_id': parse_object_id(drop_id, "drop_id")})
     if not drop:
         raise HTTPException(status_code=404, detail="Drop not found")
     
@@ -1069,7 +1132,7 @@ async def get_or_create_conversation(friend_id: str, current_user: dict = Depend
         )
     
     # Get friend info
-    friend = await db.users.find_one({'_id': ObjectId(friend_id)})
+    friend = await db.users.find_one({'_id': parse_object_id(friend_id, "friend_id")})
     if not friend:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -1101,7 +1164,7 @@ async def get_or_create_conversation(friend_id: str, current_user: dict = Depend
 async def get_messages(conversation_id: str, current_user: dict = Depends(get_current_user)):
     # Verify user is participant
     conv = await db.conversations.find_one({
-        '_id': ObjectId(conversation_id),
+        '_id': parse_object_id(conversation_id, "conversation_id"),
         'participants': current_user['id']
     })
     
@@ -1137,7 +1200,7 @@ async def get_messages(conversation_id: str, current_user: dict = Depends(get_cu
 async def send_message(conversation_id: str, message_data: MessageCreate, current_user: dict = Depends(get_current_user)):
     # Verify user is participant
     conv = await db.conversations.find_one({
-        '_id': ObjectId(conversation_id),
+        '_id': parse_object_id(conversation_id, "conversation_id"),
         'participants': current_user['id']
     })
     
@@ -1523,10 +1586,20 @@ async def upload_media(
 async def serve_media(filename: str):
     """Serve a media file"""
     from fastapi.responses import FileResponse
-    filepath = MEDIA_DIR / filename
-    if not filepath.exists():
+
+    # Reject path traversal attempts (e.g. "..", embedded separators) before
+    # touching the filesystem - filename is untrusted user input.
+    if not filename or '/' in filename or '\\' in filename or filename in ('.', '..'):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    resolved_media_dir = MEDIA_DIR.resolve()
+    filepath = (MEDIA_DIR / filename).resolve()
+    if resolved_media_dir not in filepath.parents:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    if not filepath.exists() or not filepath.is_file():
         raise HTTPException(status_code=404, detail="File not found")
-    
+
     # Determine content type
     ext = filename.split('.')[-1].lower()
     content_types = {
@@ -1563,11 +1636,26 @@ app.include_router(api_router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
+    # Auth is via Bearer tokens (not cookies), so credentials are not needed.
+    # A wildcard origin combined with allow_credentials=True is rejected by browsers.
+    allow_credentials=False,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+async def create_indexes():
+    """Create MongoDB indexes for uniqueness and query performance."""
+    await db.users.create_index('email', unique=True)
+    await db.users.create_index('username', unique=True)
+    await db.friend_requests.create_index([('to_user_id', 1), ('status', 1)])
+    await db.friend_requests.create_index([('from_user_id', 1), ('to_user_id', 1), ('status', 1)])
+    await db.drops.create_index([('user_id', 1), ('created_at', -1)])
+    await db.comments.create_index('drop_id')
+    await db.messages.create_index([('conversation_id', 1), ('created_at', 1)])
+    await db.conversations.create_index('participants')
+    await db.notifications.create_index([('user_id', 1), ('created_at', -1)])
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

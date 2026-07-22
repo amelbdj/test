@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Video, ResizeMode } from 'expo-av';
 import { useTheme } from '../../src/hooks/useTheme';
 import { apiClient } from '../../src/api/client';
 import { useAuthStore } from '../../src/store/authStore';
@@ -24,6 +25,7 @@ import { Drop, Comment } from '../../src/types';
 import { Avatar } from '../../src/components/Avatar';
 import { DropCardSkeleton } from '../../src/components/Skeleton';
 import { AnimatedPressable, AnimatedLikeButton, FadeInView, StaggerItem } from '../../src/components/Animations';
+import { resolveMediaUri } from '../../src/utils/media';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -109,11 +111,8 @@ export default function DropDetailScreen() {
     }
   };
 
-  const imageUri = drop?.media_data
-    ? drop.media_data.startsWith('data:')
-      ? drop.media_data
-      : `data:image/jpeg;base64,${drop.media_data}`
-    : undefined;
+  const imageUri = resolveMediaUri(drop?.media_url, drop?.media_data);
+  const isVideo = drop?.media_type === 'video';
 
   const renderHeader = () => {
     if (!drop) return null;
@@ -126,7 +125,7 @@ export default function DropDetailScreen() {
     return (
       <View>
         <FadeInView>
-          <View style={[styles.dropCard, { backgroundColor: theme.card }]}>
+          <View style={[styles.dropCard, { backgroundColor: theme.card }, theme.elevation.md]}>
             <View style={styles.dropHeader}>
               <AnimatedPressable style={styles.userInfo} haptic="light">
                 <Avatar source={drop.user_profile_picture} name={drop.username} size={44} />
@@ -138,14 +137,25 @@ export default function DropDetailScreen() {
             </View>
 
             {drop.is_revealed && imageUri ? (
-              <Image source={{ uri: imageUri }} style={styles.media} resizeMode="cover" />
+              isVideo ? (
+                <Video
+                  source={{ uri: imageUri }}
+                  style={styles.media}
+                  resizeMode={ResizeMode.COVER}
+                  shouldPlay={false}
+                  isLooping
+                  useNativeControls
+                />
+              ) : (
+                <Image source={{ uri: imageUri }} style={styles.media} resizeMode="cover" />
+              )
             ) : (
               <View style={[styles.lockedContainer, { backgroundColor: theme.surfaceVariant }]}>
                 <View style={[styles.lockIcon, { backgroundColor: theme.primaryMuted }]}>
                   <Ionicons name="lock-closed" size={32} color={theme.primary} />
                 </View>
                 <Text style={[styles.lockedText, { color: theme.text }]}>
-                  Ce Drop n'est pas encore revele
+                  Ce Drop n&apos;est pas encore revele
                 </Text>
               </View>
             )}
@@ -330,7 +340,7 @@ export default function DropDetailScreen() {
         {drop.is_revealed && (
           <FadeInView delay={300}>
             <View style={[styles.inputContainer, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
-              <Avatar source={user?.profile_picture} name={user?.username || ''} size={32} />
+              <Avatar source={user?.profile_picture ?? null} name={user?.username || ''} size={32} />
               <TextInput
                 ref={inputRef}
                 style={[styles.input, { backgroundColor: theme.surfaceVariant, color: theme.text }]}

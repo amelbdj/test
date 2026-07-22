@@ -6,7 +6,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert,
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,6 +18,7 @@ import { apiClient } from '../src/api/client';
 import { Input } from '../src/components/Input';
 import { Button } from '../src/components/Button';
 import { Avatar } from '../src/components/Avatar';
+import { showAlert } from '../src/utils/alert';
 
 export default function EditProfileScreen() {
   const theme = useTheme();
@@ -32,7 +32,7 @@ export default function EditProfileScreen() {
   const handleChangePhoto = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission requise', 'Nous avons besoin de votre permission pour accéder à vos photos.');
+      showAlert('Permission requise', 'Nous avons besoin de votre permission pour accéder à vos photos.');
       return;
     }
 
@@ -51,9 +51,9 @@ export default function EditProfileScreen() {
           profile_picture: `data:image/jpeg;base64,${result.assets[0].base64}`,
         });
         updateUser(response.data);
-        Alert.alert('Succès', 'Photo de profil mise à jour');
+        showAlert('Succès', 'Photo de profil mise à jour');
       } catch (error) {
-        Alert.alert('Erreur', 'Impossible de mettre à jour la photo');
+        showAlert('Erreur', 'Impossible de mettre à jour la photo');
       } finally {
         setPhotoLoading(false);
       }
@@ -62,7 +62,7 @@ export default function EditProfileScreen() {
 
   const handleSave = async () => {
     if (!username.trim()) {
-      Alert.alert('Erreur', 'Le pseudo ne peut pas être vide');
+      showAlert('Erreur', 'Le pseudo ne peut pas être vide');
       return;
     }
 
@@ -73,11 +73,11 @@ export default function EditProfileScreen() {
         bio: bio.trim(),
       });
       updateUser(response.data);
-      Alert.alert('Succès', 'Profil mis à jour', [
+      showAlert('Succès', 'Profil mis à jour', [
         { text: 'OK', onPress: () => router.back() }
       ]);
     } catch (error: any) {
-      Alert.alert('Erreur', error.response?.data?.detail || 'Impossible de mettre à jour le profil');
+      showAlert('Erreur', error.response?.data?.detail || 'Impossible de mettre à jour le profil');
     } finally {
       setLoading(false);
     }
@@ -112,7 +112,7 @@ export default function EditProfileScreen() {
               size={100} 
               showBorder 
             />
-            <View style={[styles.changePhotoButton, { backgroundColor: theme.primary }]}>
+            <View style={[styles.changePhotoButton, { backgroundColor: theme.primary, borderColor: theme.background }, theme.elevation.sm]}>
               <Ionicons name="camera" size={16} color="#FFFFFF" />
             </View>
             <Text style={[styles.changePhotoText, { color: theme.primary }]}>
@@ -120,7 +120,7 @@ export default function EditProfileScreen() {
             </Text>
           </TouchableOpacity>
 
-          <View style={[styles.formCard, { backgroundColor: theme.card }]}>
+          <View style={[styles.formCard, { backgroundColor: theme.card }, theme.elevation.sm]}>
             <Input
               label="Pseudo"
               value={username}
@@ -208,7 +208,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
-    borderColor: '#0F0F14',
   },
   changePhotoText: {
     marginTop: 12,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -86,14 +86,14 @@ export default function ChatScreen() {
     }
   };
 
-  const getOtherParticipant = () => {
+  const other = useMemo(() => {
     if (!conversation || !user) return { username: '', picture: null };
     const index = conversation.participants.findIndex((p) => p !== user.id);
     return {
       username: conversation.participant_usernames[index] || '',
       picture: conversation.participant_pictures[index] || null,
     };
-  };
+  }, [conversation, user]);
 
   const formatMessageTime = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -112,7 +112,7 @@ export default function ChatScreen() {
         {!isOwn && (
           <View style={styles.avatarSlot}>
             {showAvatar ? (
-              <Avatar source={getOtherParticipant().picture} name={getOtherParticipant().username} size={28} />
+              <Avatar source={other.picture} name={other.username} size={28} />
             ) : null}
           </View>
         )}
@@ -182,8 +182,6 @@ export default function ChatScreen() {
       </SafeAreaView>
     );
   }
-
-  const other = getOtherParticipant();
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>

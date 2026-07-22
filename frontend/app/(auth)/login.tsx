@@ -52,7 +52,7 @@ export default function LoginScreen() {
                   colors={[theme.gradientStart, theme.gradientEnd]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={styles.logoGradient}
+                  style={[styles.logoGradient, theme.elevation.glow, { shadowColor: theme.primary }]}
                 >
                   <Ionicons name="flash" size={40} color="#FFFFFF" />
                 </LinearGradient>
@@ -63,7 +63,7 @@ export default function LoginScreen() {
               </Text>
             </View>
 
-            <View style={[styles.formCard, { backgroundColor: theme.card }]}>
+            <View style={[styles.formCard, { backgroundColor: theme.card, borderColor: theme.borderLight }, theme.elevation.lg]}>
               <Input
                 label="Email"
                 placeholder="votre@email.com"
@@ -106,7 +106,7 @@ export default function LoginScreen() {
                 Pas encore de compte ?
               </Text>
               <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
-                <Text style={[styles.link, { color: theme.primary }]}>S'inscrire</Text>
+                <Text style={[styles.link, { color: theme.primary }]}>S&apos;inscrire</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -157,9 +157,10 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   formCard: {
-    borderRadius: 20,
+    borderRadius: 24,
     padding: 24,
     marginBottom: 24,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   errorContainer: {
     flexDirection: 'row',

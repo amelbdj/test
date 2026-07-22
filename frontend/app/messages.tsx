@@ -65,7 +65,7 @@ export default function MessagesScreen() {
 
     return (
       <TouchableOpacity
-        style={[styles.conversationCard, { backgroundColor: theme.card }]}
+        style={[styles.conversationCard, { backgroundColor: theme.card }, theme.elevation.sm]}
         onPress={() => router.push(`/chat/${item.id}`)}
         activeOpacity={0.7}
       >

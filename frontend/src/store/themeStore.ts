@@ -111,6 +111,38 @@ export const lightTheme = {
   gradientEnd: '#06B6D4',
   tabBar: '#FFFFFF',
   tabBarBorder: '#E2E8F0',
+  // Depth / elevation presets (spread directly onto a style)
+  elevation: {
+    sm: {
+      shadowColor: '#1A1A2E',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 8,
+      elevation: 2,
+    },
+    md: {
+      shadowColor: '#1A1A2E',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.1,
+      shadowRadius: 18,
+      elevation: 6,
+    },
+    lg: {
+      shadowColor: '#1A1A2E',
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.16,
+      shadowRadius: 28,
+      elevation: 12,
+    },
+    // Coloured glow used under primary actions
+    glow: {
+      shadowColor: '#7C3AED',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.32,
+      shadowRadius: 18,
+      elevation: 10,
+    },
+  },
 };
 
 export const darkTheme = {
@@ -151,6 +183,38 @@ export const darkTheme = {
   gradientEnd: '#22D3EE',
   tabBar: '#16161D',
   tabBarBorder: '#27272A',
+  // Depth / elevation presets (spread directly onto a style)
+  elevation: {
+    sm: {
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 2,
+    },
+    md: {
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.45,
+      shadowRadius: 18,
+      elevation: 6,
+    },
+    lg: {
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.6,
+      shadowRadius: 28,
+      elevation: 12,
+    },
+    // Coloured glow used under primary actions
+    glow: {
+      shadowColor: '#8B5CF6',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.5,
+      shadowRadius: 20,
+      elevation: 10,
+    },
+  },
 };
 
 export type Theme = typeof lightTheme;
@@ -158,3 +222,23 @@ export type Theme = typeof lightTheme;
 export const getTheme = (isDark: boolean): Theme => {
   return isDark ? darkTheme : lightTheme;
 };
+
+// Shared spacing scale (4pt grid) — use for consistent rhythm across screens
+export const spacing = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 24,
+  xxxl: 32,
+} as const;
+
+// Shared corner-radius scale
+export const radius = {
+  sm: 10,
+  md: 14,
+  lg: 20,
+  xl: 24,
+  pill: 999,
+} as const;

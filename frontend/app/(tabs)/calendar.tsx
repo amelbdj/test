@@ -19,6 +19,7 @@ import { apiClient } from '../../src/api/client';
 import { Drop } from '../../src/types';
 import { LoadingSpinner } from '../../src/components/LoadingSpinner';
 import { AnimatedPressable, FadeInView } from '../../src/components/Animations';
+import { resolveMediaUri } from '../../src/utils/media';
 import { format, parseISO, isSameDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -131,7 +132,7 @@ export default function CalendarScreen() {
         showsVerticalScrollIndicator={false}
       >
         <FadeInView>
-          <View style={[styles.statsCard, { backgroundColor: theme.card }]}>
+          <View style={[styles.statsCard, { backgroundColor: theme.card }, theme.elevation.sm]}>
             <View style={styles.statItem}>
               <Text style={[styles.statValue, { color: theme.text }]}>{drops.length}</Text>
               <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Total Drops</Text>
@@ -153,7 +154,7 @@ export default function CalendarScreen() {
         </FadeInView>
 
         <FadeInView delay={100}>
-          <View style={[styles.calendarContainer, { backgroundColor: theme.card }]}>
+          <View style={[styles.calendarContainer, { backgroundColor: theme.card }, theme.elevation.sm]}>
             <Calendar
             onDayPress={handleDayPress}
             onMonthChange={(month) => setCurrentMonth(format(new Date(month.dateString), 'yyyy-MM'))}
@@ -186,7 +187,7 @@ export default function CalendarScreen() {
         {selectedDrop ? (
           <FadeInView delay={200}>
             <AnimatedPressable
-              style={[styles.selectedDropCard, { backgroundColor: theme.card }]}
+              style={[styles.selectedDropCard, { backgroundColor: theme.card }, theme.elevation.sm]}
               onPress={() => router.push(`/drop/${selectedDrop.id}`)}
               scaleValue={0.98}
             >
@@ -197,12 +198,10 @@ export default function CalendarScreen() {
               <Ionicons name="chevron-forward" size={20} color={theme.textTertiary} />
             </View>
             <View style={styles.selectedDropContent}>
-              {selectedDrop.is_revealed && selectedDrop.media_data ? (
+              {selectedDrop.is_revealed && resolveMediaUri(selectedDrop.media_url, selectedDrop.media_data) ? (
                 <Image
                   source={{
-                    uri: selectedDrop.media_data.startsWith('data:')
-                      ? selectedDrop.media_data
-                      : `data:image/jpeg;base64,${selectedDrop.media_data}`,
+                    uri: resolveMediaUri(selectedDrop.media_url, selectedDrop.media_data),
                   }}
                   style={styles.selectedDropImage}
                   resizeMode="cover"
@@ -246,7 +245,7 @@ export default function CalendarScreen() {
           </AnimatedPressable>
           </FadeInView>
         ) : selectedDate ? (
-          <View style={[styles.noDropCard, { backgroundColor: theme.card }]}>
+          <View style={[styles.noDropCard, { backgroundColor: theme.card }, theme.elevation.sm]}>
             <Ionicons name="calendar-outline" size={32} color={theme.textTertiary} />
             <Text style={[styles.noDropText, { color: theme.textSecondary }]}>
               Aucun Drop ce jour

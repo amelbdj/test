@@ -70,11 +70,11 @@ export default function RegisterScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <TouchableOpacity 
-              style={styles.backButton} 
+            <TouchableOpacity
+              style={[styles.backButton, { backgroundColor: theme.surfaceVariant }]}
               onPress={() => router.back()}
             >
-              <Ionicons name="arrow-back" size={24} color={theme.text} />
+              <Ionicons name="arrow-back" size={22} color={theme.text} />
             </TouchableOpacity>
 
             <View style={styles.header}>
@@ -83,7 +83,7 @@ export default function RegisterScreen() {
                   colors={[theme.gradientStart, theme.gradientEnd]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={styles.logoGradient}
+                  style={[styles.logoGradient, theme.elevation.glow, { shadowColor: theme.primary }]}
                 >
                   <Ionicons name="person-add" size={36} color="#FFFFFF" />
                 </LinearGradient>
@@ -94,7 +94,7 @@ export default function RegisterScreen() {
               </Text>
             </View>
 
-            <View style={[styles.formCard, { backgroundColor: theme.card }]}>
+            <View style={[styles.formCard, { backgroundColor: theme.card, borderColor: theme.borderLight }, theme.elevation.lg]}>
               <Input
                 label="Pseudo"
                 placeholder="votre_pseudo"
@@ -214,9 +214,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   formCard: {
-    borderRadius: 20,
+    borderRadius: 24,
     padding: 24,
     marginBottom: 24,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   errorContainer: {
     flexDirection: 'row',

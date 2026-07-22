@@ -90,8 +90,13 @@ export const Button: React.FC<ButtonProps> = ({
       <TouchableOpacity
         onPress={onPress}
         disabled={disabled || loading}
-        activeOpacity={0.8}
-        style={[fullWidth && styles.fullWidth, style]}
+        activeOpacity={0.85}
+        style={[
+          theme.elevation.glow,
+          { shadowColor: theme.primary },
+          fullWidth && styles.fullWidth,
+          style,
+        ]}
       >
         <LinearGradient
           colors={[theme.gradientStart, theme.gradientEnd]}
@@ -124,6 +129,8 @@ export const Button: React.FC<ButtonProps> = ({
     }
   };
 
+  const isSolid = (variant === 'primary' || variant === 'secondary') && !disabled;
+
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -134,8 +141,9 @@ export const Button: React.FC<ButtonProps> = ({
         {
           backgroundColor: getBackgroundColor(),
           borderColor: variant === 'outline' ? theme.primary : 'transparent',
-          borderWidth: variant === 'outline' ? 2 : 0,
+          borderWidth: variant === 'outline' ? 1.5 : 0,
         },
+        isSolid && theme.elevation.sm,
         fullWidth && styles.fullWidth,
         style,
       ]}

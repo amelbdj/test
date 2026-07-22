@@ -21,6 +21,7 @@ import { Drop } from '../../src/types';
 import { Avatar } from '../../src/components/Avatar';
 import { ProfileSkeleton } from '../../src/components/Skeleton';
 import { AnimatedPressable, FadeInView, StaggerItem } from '../../src/components/Animations';
+import { resolveMediaUri } from '../../src/utils/media';
 
 export default function ProfileScreen() {
   const theme = useTheme();
@@ -136,7 +137,7 @@ export default function ProfileScreen() {
           <View style={styles.profileSection}>
             <AnimatedPressable onPress={handleChangePhoto} style={styles.avatarContainer} scaleValue={0.95}>
               <Avatar source={user.profile_picture} name={user.username} size={100} showBorder />
-              <View style={[styles.editBadge, { backgroundColor: theme.primary }]}>
+              <View style={[styles.editBadge, { backgroundColor: theme.primary, borderColor: theme.background }, theme.elevation.sm]}>
                 <Ionicons name="camera" size={14} color="#FFFFFF" />
               </View>
             </AnimatedPressable>
@@ -151,7 +152,7 @@ export default function ProfileScreen() {
               </AnimatedPressable>
             )}
 
-            <View style={[styles.statsRow, { backgroundColor: theme.card }]}>
+            <View style={[styles.statsRow, { backgroundColor: theme.card, borderColor: theme.borderLight }, theme.elevation.md]}>
               <View style={styles.statItem}>
                 <Text style={[styles.statValue, { color: theme.text }]}>{drops.length}</Text>
                 <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Drops</Text>
@@ -191,7 +192,7 @@ export default function ProfileScreen() {
             <Text style={[styles.sectionTitle, { color: theme.text }]}>Mes Drops</Text>
             
             {drops.length === 0 ? (
-              <View style={[styles.emptyDrops, { backgroundColor: theme.card }]}>
+              <View style={[styles.emptyDrops, { backgroundColor: theme.card, borderColor: theme.borderLight }, theme.elevation.sm]}>
                 <View style={[styles.emptyIconContainer, { backgroundColor: theme.primaryMuted }]}>
                   <Ionicons name="images-outline" size={32} color={theme.primary} />
                 </View>
@@ -204,20 +205,18 @@ export default function ProfileScreen() {
               </View>
             ) : (
               <View style={styles.dropsGrid}>
-                {drops.map((drop, index) => (
+                {drops.map((drop, index) => {
+                  const thumbUri = resolveMediaUri(drop.media_url, drop.media_data);
+                  return (
                   <StaggerItem key={drop.id} index={index}>
                     <AnimatedPressable
                       style={[styles.dropThumbnail, { backgroundColor: theme.surfaceVariant }]}
                       onPress={() => router.push(`/drop/${drop.id}`)}
                       scaleValue={0.95}
                     >
-                      {drop.is_revealed && drop.media_data ? (
+                      {drop.is_revealed && thumbUri ? (
                         <Image
-                          source={{
-                            uri: drop.media_data.startsWith('data:')
-                              ? drop.media_data
-                              : `data:image/jpeg;base64,${drop.media_data}`,
-                          }}
+                          source={{ uri: thumbUri }}
                           style={styles.dropImage}
                         />
                       ) : (
@@ -230,7 +229,8 @@ export default function ProfileScreen() {
                       )}
                     </AnimatedPressable>
                   </StaggerItem>
-                ))}
+                  );
+                })}
               </View>
             )}
           </View>
@@ -293,7 +293,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
-    borderColor: '#0F0F14',
   },
   username: {
     fontSize: 24,
@@ -317,7 +316,8 @@ const styles = StyleSheet.create({
     marginTop: 24,
     paddingVertical: 20,
     paddingHorizontal: 24,
-    borderRadius: 16,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
     width: '100%',
   },
   statItem: {
@@ -371,7 +371,8 @@ const styles = StyleSheet.create({
   emptyDrops: {
     alignItems: 'center',
     paddingVertical: 40,
-    borderRadius: 16,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   emptyIconContainer: {
     width: 64,

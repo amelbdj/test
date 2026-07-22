@@ -108,7 +108,7 @@ export default function FriendsScreen() {
 
   const renderFriend = ({ item, index }: { item: Friend; index: number }) => (
     <StaggerItem index={index}>
-      <View style={[styles.friendCard, { backgroundColor: theme.card }]}>
+      <View style={[styles.friendCard, { backgroundColor: theme.card }, theme.elevation.sm]}>
         <Avatar source={item.profile_picture} name={item.username} size={52} />
         <View style={styles.friendInfo}>
           <Text style={[styles.friendName, { color: theme.text }]}>{item.username}</Text>
@@ -127,7 +127,7 @@ export default function FriendsScreen() {
 
   const renderRequest = ({ item, index }: { item: FriendRequest; index: number }) => (
     <StaggerItem index={index}>
-      <View style={[styles.requestCard, { backgroundColor: theme.card }]}>
+      <View style={[styles.requestCard, { backgroundColor: theme.card }, theme.elevation.sm]}>
         <Avatar source={item.from_profile_picture} name={item.from_username} size={52} />
         <View style={styles.requestInfo}>
           <Text style={[styles.friendName, { color: theme.text }]}>{item.from_username}</Text>
@@ -157,7 +157,7 @@ export default function FriendsScreen() {
 
   const renderSearchResult = ({ item, index }: { item: SearchUser; index: number }) => (
     <StaggerItem index={index}>
-      <View style={[styles.friendCard, { backgroundColor: theme.card }]}>
+      <View style={[styles.friendCard, { backgroundColor: theme.card }, theme.elevation.sm]}>
         <Avatar source={item.profile_picture} name={item.username} size={52} />
         <View style={styles.friendInfo}>
           <Text style={[styles.friendName, { color: theme.text }]}>{item.username}</Text>
@@ -213,7 +213,7 @@ export default function FriendsScreen() {
         <Text style={[styles.headerTitle, { color: theme.text }]}>Amis</Text>
       </View>
 
-      <View style={[styles.tabs, { backgroundColor: theme.card }]}>
+      <View style={[styles.tabs, { backgroundColor: theme.card }, theme.elevation.sm]}>
         {(['friends', 'requests', 'search'] as TabType[]).map((tab) => (
           <TouchableOpacity
             key={tab}
@@ -240,7 +240,7 @@ export default function FriendsScreen() {
       </View>
 
       {activeTab === 'search' && (
-        <View style={[styles.searchContainer, { backgroundColor: theme.card }]}>
+        <View style={[styles.searchContainer, { backgroundColor: theme.card }, theme.elevation.sm]}>
           <Ionicons name="search" size={20} color={theme.textTertiary} />
           <TextInput
             style={[styles.searchInput, { color: theme.text }]}

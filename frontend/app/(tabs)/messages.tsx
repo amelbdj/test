@@ -66,7 +66,7 @@ export default function MessagesScreen() {
     return (
       <StaggerItem index={index}>
         <AnimatedPressable
-          style={[styles.conversationCard, { backgroundColor: theme.card }]}
+          style={[styles.conversationCard, { backgroundColor: theme.card }, theme.elevation.sm]}
           onPress={() => router.push(`/chat/${item.id}`)}
           scaleValue={0.98}
           haptic="light"

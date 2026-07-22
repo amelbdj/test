@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Pressable, ViewStyle } from 'react-native';
+import { StyleSheet, Pressable, ViewStyle, StyleProp } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -15,7 +15,7 @@ interface AnimatedPressableProps {
   children: React.ReactNode;
   onPress?: () => void;
   onLongPress?: () => void;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   scaleValue?: number;
   disabled?: boolean;
   haptic?: 'light' | 'medium' | 'heavy' | 'none';
@@ -26,7 +26,7 @@ export const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
   onPress,
   onLongPress,
   style,
-  scaleValue = 0.97,
+  scaleValue = 0.99,
   disabled = false,
   haptic = 'light',
 }) => {
@@ -55,13 +55,13 @@ export const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
   }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(scaleValue, { damping: 15, stiffness: 400 });
-    opacity.value = withTiming(0.9, { duration: 100 });
+    scale.value = withTiming(scaleValue, { duration: 60 });
+    opacity.value = withTiming(0.96, { duration: 60 });
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15, stiffness: 400 });
-    opacity.value = withTiming(1, { duration: 100 });
+    scale.value = withTiming(1, { duration: 60 });
+    opacity.value = withTiming(1, { duration: 60 });
   };
 
   const handlePress = () => {
@@ -147,21 +147,21 @@ interface FadeInViewProps {
   children: React.ReactNode;
   delay?: number;
   duration?: number;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 export const FadeInView: React.FC<FadeInViewProps> = ({
   children,
   delay = 0,
-  duration = 400,
+  duration = 180,
   style,
 }) => {
   const opacity = useSharedValue(0);
-  const translateY = useSharedValue(20);
+  const translateY = useSharedValue(6);
 
   React.useEffect(() => {
     opacity.value = withTiming(1, { duration });
-    translateY.value = withSpring(0, { damping: 15 });
+    translateY.value = withTiming(0, { duration });
   }, []);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -180,7 +180,7 @@ export const FadeInView: React.FC<FadeInViewProps> = ({
 interface StaggerItemProps {
   children: React.ReactNode;
   index: number;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 export const StaggerItem: React.FC<StaggerItemProps> = ({
@@ -189,12 +189,11 @@ export const StaggerItem: React.FC<StaggerItemProps> = ({
   style,
 }) => {
   const opacity = useSharedValue(0);
-  const translateY = useSharedValue(30);
+  const translateY = useSharedValue(8);
 
   React.useEffect(() => {
-    const delay = index * 80;
-    opacity.value = withTiming(1, { duration: 400 });
-    translateY.value = withSpring(0, { damping: 15, stiffness: 100 });
+    opacity.value = withTiming(1, { duration: 180 });
+    translateY.value = withTiming(0, { duration: 180 });
   }, [index]);
 
   const animatedStyle = useAnimatedStyle(() => ({

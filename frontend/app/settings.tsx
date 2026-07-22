@@ -69,7 +69,7 @@ export default function SettingsScreen() {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Profile Section */}
-        <View style={[styles.profileCard, { backgroundColor: theme.card }]}>
+        <View style={[styles.profileCard, { backgroundColor: theme.card }, theme.elevation.sm]}>
           <View style={styles.profileInfo}>
             <LinearGradient
               colors={[theme.gradientStart, theme.gradientEnd]}
@@ -96,7 +96,7 @@ export default function SettingsScreen() {
 
         {/* Theme Section */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>APPARENCE</Text>
-        <View style={[styles.section, { backgroundColor: theme.card }]}>
+        <View style={[styles.section, { backgroundColor: theme.card }, theme.elevation.sm]}>
           {themeOptions.map((option, index) => (
             <TouchableOpacity
               key={option.value}
@@ -125,7 +125,7 @@ export default function SettingsScreen() {
 
         {/* Account Section */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>COMPTE</Text>
-        <View style={[styles.section, { backgroundColor: theme.card }]}>
+        <View style={[styles.section, { backgroundColor: theme.card }, theme.elevation.sm]}>
           <TouchableOpacity 
             style={[styles.menuItem, { borderBottomWidth: 1, borderBottomColor: theme.border }]} 
             onPress={() => router.push('/edit-profile')}
@@ -142,7 +142,7 @@ export default function SettingsScreen() {
 
         {/* Info Section */}
         <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>INFORMATIONS</Text>
-        <View style={[styles.section, { backgroundColor: theme.card }]}>
+        <View style={[styles.section, { backgroundColor: theme.card }, theme.elevation.sm]}>
           <TouchableOpacity style={styles.menuItem} onPress={handleAbout}>
             <View style={styles.menuItemLeft}>
               <View style={[styles.iconContainer, { backgroundColor: theme.surfaceVariant }]}>

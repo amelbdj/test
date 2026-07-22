@@ -29,6 +29,8 @@ interface StreakData {
     label: string;
     color: string;
     achieved: boolean;
+    rewarded?: boolean;
+    reward_freezes?: number;
   }>;
   next_milestone: {
     days: number;
@@ -128,7 +130,7 @@ export default function StreakScreen() {
             colors={['#FF6B35', '#FF3B5C']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={styles.bigStreakCard}
+            style={[styles.bigStreakCard, theme.elevation.glow, { shadowColor: '#FF6B35' }]}
           >
             <Text style={styles.fireEmoji}>🔥</Text>
             <Text style={styles.bigStreakNumber}>{streak.current_streak}</Text>
@@ -137,7 +139,7 @@ export default function StreakScreen() {
             {streak.is_at_risk && (
               <View style={styles.riskBanner}>
                 <Ionicons name="warning" size={16} color="#FFD700" />
-                <Text style={styles.riskText}>Streak en danger ! Postez un Drop aujourd'hui</Text>
+                <Text style={styles.riskText}>Streak en danger ! Postez un Drop aujourd&apos;hui</Text>
               </View>
             )}
 
@@ -164,7 +166,7 @@ export default function StreakScreen() {
         {streak.is_at_risk && streak.streak_freezes > 0 && (
           <FadeInView delay={100}>
             <AnimatedPressable
-              style={[styles.freezeButton, { backgroundColor: theme.card }]}
+              style={[styles.freezeButton, { backgroundColor: theme.card }, theme.elevation.sm]}
               onPress={handleFreeze}
               scaleValue={0.98}
               haptic="medium"
@@ -191,7 +193,7 @@ export default function StreakScreen() {
         {/* Next Milestone */}
         {streak.next_milestone && (
           <FadeInView delay={200}>
-            <View style={[styles.nextMilestoneCard, { backgroundColor: theme.card }]}>
+            <View style={[styles.nextMilestoneCard, { backgroundColor: theme.card }, theme.elevation.sm]}>
               <Text style={[styles.sectionTitle, { color: theme.text }]}>Prochain Objectif</Text>
               <View style={styles.milestoneRow}>
                 <Text style={styles.milestoneEmoji}>{streak.next_milestone.emoji}</Text>
@@ -273,7 +275,7 @@ export default function StreakScreen() {
 
         {/* Week Activity */}
         <FadeInView delay={400}>
-          <View style={[styles.weekCard, { backgroundColor: theme.card }]}>
+          <View style={[styles.weekCard, { backgroundColor: theme.card }, theme.elevation.sm]}>
             <Text style={[styles.sectionTitle, { color: theme.text }]}>
               Activite de la semaine
             </Text>

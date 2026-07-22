@@ -157,7 +157,7 @@ export const RevealAnimation: React.FC<RevealAnimationProps> = ({
 
           {/* Text */}
           <Animated.View style={[styles.textContainer, textStyle]}>
-            <Text style={[styles.revealTitle, { color: theme.text }]}>C'est l'heure ! 🎉</Text>
+            <Text style={[styles.revealTitle, { color: theme.text }]}>C&apos;est l&apos;heure ! 🎉</Text>
             <Text style={[styles.revealSubtitle, { color: theme.textSecondary }]}>
               Vos Drops sont maintenant révélés
             </Text>

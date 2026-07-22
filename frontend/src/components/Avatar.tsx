@@ -33,7 +33,7 @@ export const Avatar: React.FC<AvatarProps> = ({ source, name, size = 40, showBor
             source={{ uri: imageUri }}
             style={[
               styles.image,
-              { width: size, height: size, borderRadius: size / 2 }
+              { width: size, height: size, borderRadius: size / 2, backgroundColor: theme.surfaceVariant }
             ]}
           />
         </LinearGradient>
@@ -45,7 +45,7 @@ export const Avatar: React.FC<AvatarProps> = ({ source, name, size = 40, showBor
         source={{ uri: imageUri }}
         style={[
           styles.image,
-          { width: size, height: size, borderRadius: size / 2 }
+          { width: size, height: size, borderRadius: size / 2, backgroundColor: theme.surfaceVariant }
         ]}
       />
     );
@@ -99,9 +99,7 @@ export const Avatar: React.FC<AvatarProps> = ({ source, name, size = 40, showBor
 };
 
 const styles = StyleSheet.create({
-  image: {
-    backgroundColor: '#2A2A35',
-  },
+  image: {},
   gradientBorder: {
     alignItems: 'center',
     justifyContent: 'center',

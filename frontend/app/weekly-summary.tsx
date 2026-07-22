@@ -17,6 +17,7 @@ import { apiClient } from '../src/api/client';
 import { Avatar } from '../src/components/Avatar';
 import { AnimatedPressable, FadeInView } from '../src/components/Animations';
 import { FriendCardSkeleton } from '../src/components/Skeleton';
+import { resolveMediaUri } from '../src/utils/media';
 
 const { width, height } = Dimensions.get('window');
 
@@ -101,11 +102,7 @@ export default function WeeklySummaryScreen() {
   }
 
   const achievementConfig = ACHIEVEMENT_CONFIG[summary.achievement] || ACHIEVEMENT_CONFIG.none;
-  const bestDropImage = summary.best_drop?.media_data
-    ? summary.best_drop.media_data.startsWith('data:')
-      ? summary.best_drop.media_data
-      : `data:image/jpeg;base64,${summary.best_drop.media_data}`
-    : null;
+  const bestDropImage = resolveMediaUri(summary.best_drop?.media_url, summary.best_drop?.media_data) || null;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
@@ -128,7 +125,7 @@ export default function WeeklySummaryScreen() {
             colors={achievementConfig.gradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={styles.achievementCard}
+            style={[styles.achievementCard, theme.elevation.glow, { shadowColor: achievementConfig.gradient[0] }]}
           >
             <Text style={styles.achievementEmoji}>{achievementConfig.emoji}</Text>
             <Text style={styles.achievementBadge}>{achievementConfig.badge}</Text>
@@ -149,7 +146,7 @@ export default function WeeklySummaryScreen() {
         {/* Stats Grid */}
         <FadeInView delay={200}>
           <View style={styles.statsGrid}>
-            <View style={[styles.statCard, { backgroundColor: theme.card }]}>
+            <View style={[styles.statCard, { backgroundColor: theme.card }, theme.elevation.sm]}>
               <LinearGradient colors={['#7C5CFC', '#A78BFA']} style={styles.statIcon}>
                 <Ionicons name="images" size={20} color="#FFF" />
               </LinearGradient>
@@ -157,7 +154,7 @@ export default function WeeklySummaryScreen() {
               <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Drops</Text>
             </View>
 
-            <View style={[styles.statCard, { backgroundColor: theme.card }]}>
+            <View style={[styles.statCard, { backgroundColor: theme.card }, theme.elevation.sm]}>
               <LinearGradient colors={['#FF6B35', '#FF3B5C']} style={styles.statIcon}>
                 <Text style={styles.statIconEmoji}>🔥</Text>
               </LinearGradient>
@@ -165,7 +162,7 @@ export default function WeeklySummaryScreen() {
               <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Streak</Text>
             </View>
 
-            <View style={[styles.statCard, { backgroundColor: theme.card }]}>
+            <View style={[styles.statCard, { backgroundColor: theme.card }, theme.elevation.sm]}>
               <LinearGradient colors={['#FF3B5C', '#FF6B8A']} style={styles.statIcon}>
                 <Ionicons name="heart" size={20} color="#FFF" />
               </LinearGradient>
@@ -173,7 +170,7 @@ export default function WeeklySummaryScreen() {
               <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Likes</Text>
             </View>
 
-            <View style={[styles.statCard, { backgroundColor: theme.card }]}>
+            <View style={[styles.statCard, { backgroundColor: theme.card }, theme.elevation.sm]}>
               <LinearGradient colors={['#3B82F6', '#60A5FA']} style={styles.statIcon}>
                 <Ionicons name="chatbubble" size={20} color="#FFF" />
               </LinearGradient>
@@ -186,7 +183,7 @@ export default function WeeklySummaryScreen() {
         {/* Best Drop */}
         {summary.best_drop && summary.best_drop.is_revealed && (
           <FadeInView delay={400}>
-            <View style={[styles.bestDropSection, { backgroundColor: theme.card }]}>
+            <View style={[styles.bestDropSection, { backgroundColor: theme.card }, theme.elevation.sm]}>
               <View style={styles.bestDropHeader}>
                 <LinearGradient colors={['#FFD700', '#FFA500']} style={styles.bestDropBadge}>
                   <Text style={styles.bestDropBadgeText}>Meilleur Drop</Text>
@@ -224,7 +221,7 @@ export default function WeeklySummaryScreen() {
               {summary.friends_comparison.map((friend, index) => (
                 <View
                   key={index}
-                  style={[styles.friendRankCard, { backgroundColor: theme.card }]}
+                  style={[styles.friendRankCard, { backgroundColor: theme.card }, theme.elevation.sm]}
                 >
                   <View style={[styles.rankBadge, index === 0 && styles.rankBadgeGold, index === 1 && styles.rankBadgeSilver]}>
                     <Text style={styles.rankText}>{index + 1}</Text>
@@ -257,7 +254,7 @@ export default function WeeklySummaryScreen() {
               colors={[theme.gradientStart, theme.gradientEnd]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
-              style={styles.ctaButton}
+              style={[styles.ctaButton, theme.elevation.glow, { shadowColor: theme.primary }]}
             >
               <Text style={styles.ctaText}>Retour au Feed</Text>
               <Ionicons name="arrow-forward" size={20} color="#FFF" />

@@ -33,15 +33,17 @@ export const Input: React.FC<InputProps> = ({
           styles.inputContainer,
           {
             backgroundColor: theme.surfaceVariant,
-            borderColor: error ? theme.error : isFocused ? theme.primary : 'transparent',
-            borderWidth: isFocused || error ? 2 : 0,
+            borderColor: error ? theme.error : isFocused ? theme.primary : theme.border,
+            borderWidth: isFocused || error ? 1.5 : 1,
           },
+          isFocused && !error && { ...theme.elevation.glow, shadowColor: theme.primary, shadowOpacity: 0.18 },
         ]}
       >
         {icon && (
           <Ionicons name={icon} size={20} color={isFocused ? theme.primary : theme.textTertiary} style={styles.leftIcon} />
         )}
         <TextInput
+          showSoftInputOnFocus
           {...props}
           secureTextEntry={isSecure}
           style={[

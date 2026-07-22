@@ -5,6 +5,8 @@ export interface User {
   bio: string;
   profile_picture: string | null;
   streak: number;
+  max_streak?: number;
+  streak_freezes?: number;
   last_drop_date: string | null;
   friends_count: number;
   created_at: string;

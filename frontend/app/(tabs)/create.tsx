@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Image,
   TextInput,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -22,6 +21,7 @@ import { useTheme } from '../../src/hooks/useTheme';
 import { apiClient } from '../../src/api/client';
 import { Button } from '../../src/components/Button';
 import { AnimatedPressable, FadeInView } from '../../src/components/Animations';
+import { showAlert } from '../../src/utils/alert';
 
 type MediaType = 'image' | 'video';
 
@@ -42,73 +42,88 @@ export default function CreateDropScreen() {
   const videoRef = useRef<Video>(null);
 
   const pickMedia = async (type: 'photo' | 'video' | 'both') => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission requise', 'Nous avons besoin de votre permission pour acceder a vos medias.');
-      return;
-    }
-
-    const mediaTypes = type === 'photo'
-      ? ImagePicker.MediaTypeOptions.Images
-      : type === 'video'
-        ? ImagePicker.MediaTypeOptions.Videos
-        : ImagePicker.MediaTypeOptions.All;
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes,
-      allowsEditing: true,
-      aspect: type === 'video' ? undefined : [1, 1],
-      quality: 0.7,
-      base64: type !== 'video',
-      videoMaxDuration: 60,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      const isVideo = asset.type === 'video' || (asset.uri && asset.uri.match(/\.(mp4|mov|webm|avi)$/i));
-
-      if (isVideo) {
-        setMedia({
-          uri: asset.uri,
-          type: 'video',
-          filename: asset.fileName || 'video.mp4',
-        });
-      } else if (asset.base64) {
-        setMedia({
-          uri: asset.uri,
-          base64: `data:image/jpeg;base64,${asset.base64}`,
-          type: 'image',
-        });
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        showAlert('Permission requise', 'Nous avons besoin de votre permission pour acceder a vos medias.');
+        return;
       }
+
+      const mediaTypes = type === 'photo'
+        ? ImagePicker.MediaTypeOptions.Images
+        : type === 'video'
+          ? ImagePicker.MediaTypeOptions.Videos
+          : ImagePicker.MediaTypeOptions.All;
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes,
+        allowsEditing: type !== 'video',
+        aspect: type === 'video' ? undefined : [1, 1],
+        quality: 0.7,
+        base64: type !== 'video',
+        videoMaxDuration: 60,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        const isVideo = asset.type === 'video' || (asset.uri && asset.uri.match(/\.(mp4|mov|webm|avi)$/i));
+
+        if (isVideo) {
+          setMedia({
+            uri: asset.uri,
+            type: 'video',
+            filename: asset.fileName || 'video.mp4',
+          });
+        } else if (asset.base64) {
+          setMedia({
+            uri: asset.uri,
+            base64: `data:image/jpeg;base64,${asset.base64}`,
+            type: 'image',
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Media picker error:', error);
+      showAlert('Erreur', 'Impossible de selectionner le media.');
     }
   };
 
   const takePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission requise', 'Nous avons besoin de votre permission pour utiliser la camera.');
+    if (Platform.OS === 'web') {
+      showAlert('Non disponible', 'La camera n\'est pas disponible depuis un navigateur. Utilisez "Photo" pour choisir un fichier.');
       return;
     }
 
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.7,
-      base64: true,
-    });
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        showAlert('Permission requise', 'Nous avons besoin de votre permission pour utiliser la camera.');
+        return;
+      }
 
-    if (!result.canceled && result.assets[0].base64) {
-      setMedia({
-        uri: result.assets[0].uri,
-        base64: `data:image/jpeg;base64,${result.assets[0].base64}`,
-        type: 'image',
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+        base64: true,
       });
+
+      if (!result.canceled && result.assets[0].base64) {
+        setMedia({
+          uri: result.assets[0].uri,
+          base64: `data:image/jpeg;base64,${result.assets[0].base64}`,
+          type: 'image',
+        });
+      }
+    } catch (error) {
+      console.error('Camera error:', error);
+      showAlert('Erreur', 'Impossible d\'utiliser la camera.');
     }
   };
 
   const handleSubmit = async () => {
     if (!media) {
-      Alert.alert('Erreur', 'Veuillez selectionner un media');
+      showAlert('Erreur', 'Veuillez selectionner un media');
       return;
     }
 
@@ -118,11 +133,18 @@ export default function CreateDropScreen() {
         // Upload video file to server
         setUploadProgress('Upload de la video...');
         const formData = new FormData();
-        formData.append('file', {
-          uri: media.uri,
-          type: 'video/mp4',
-          name: media.filename || 'video.mp4',
-        } as any);
+        if (Platform.OS === 'web') {
+          // On web, media.uri is a blob: URL - FormData needs a real Blob/File,
+          // not the {uri, type, name} shorthand object React Native uses natively.
+          const fileBlob = await (await fetch(media.uri)).blob();
+          formData.append('file', fileBlob, media.filename || 'video.mp4');
+        } else {
+          formData.append('file', {
+            uri: media.uri,
+            type: 'video/mp4',
+            name: media.filename || 'video.mp4',
+          } as any);
+        }
 
         const uploadRes = await apiClient.post('/upload/media', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
@@ -144,14 +166,10 @@ export default function CreateDropScreen() {
         });
       }
 
-      Alert.alert(
-        'Drop cree ! 🎉',
-        'Votre Drop sera revele dimanche a 20h',
-        [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]
-      );
+      router.replace('/(tabs)?dropCreated=1');
     } catch (error: any) {
       console.error('Create drop error:', error);
-      Alert.alert('Erreur', error.response?.data?.detail || 'Impossible de creer le Drop');
+      showAlert('Erreur', error.response?.data?.detail || 'Impossible de creer le Drop');
     } finally {
       setLoading(false);
       setUploadProgress('');
@@ -208,7 +226,7 @@ export default function CreateDropScreen() {
 
                 <View style={[styles.lockedOverlay, { backgroundColor: theme.overlay }]}>
                   <Ionicons name="lock-closed" size={24} color={theme.primary} />
-                  <Text style={[styles.lockedText, { color: theme.text }]}>Sera floute jusqu'au reveal</Text>
+                  <Text style={[styles.lockedText, { color: theme.text }]}>Sera floute jusqu&apos;au reveal</Text>
                 </View>
               </View>
             </FadeInView>
@@ -216,7 +234,7 @@ export default function CreateDropScreen() {
             <FadeInView delay={100}>
               <View style={styles.mediaButtons}>
                 <AnimatedPressable
-                  style={[styles.mediaButton, { backgroundColor: theme.card }]}
+                  style={[styles.mediaButton, { backgroundColor: theme.card }, theme.elevation.sm]}
                   onPress={takePhoto}
                   scaleValue={0.97}
                 >
@@ -228,7 +246,7 @@ export default function CreateDropScreen() {
                 </AnimatedPressable>
 
                 <AnimatedPressable
-                  style={[styles.mediaButton, { backgroundColor: theme.card }]}
+                  style={[styles.mediaButton, { backgroundColor: theme.card }, theme.elevation.sm]}
                   onPress={() => pickMedia('photo')}
                   scaleValue={0.97}
                 >
@@ -241,7 +259,7 @@ export default function CreateDropScreen() {
               </View>
 
               <AnimatedPressable
-                style={[styles.videoButton, { backgroundColor: theme.card }]}
+                style={[styles.videoButton, { backgroundColor: theme.card }, theme.elevation.sm]}
                 onPress={() => pickMedia('video')}
                 scaleValue={0.98}
               >
@@ -263,7 +281,7 @@ export default function CreateDropScreen() {
           )}
 
           <FadeInView delay={200}>
-            <View style={[styles.descriptionCard, { backgroundColor: theme.card }]}>
+            <View style={[styles.descriptionCard, { backgroundColor: theme.card }, theme.elevation.sm]}>
               <Text style={[styles.label, { color: theme.textSecondary }]}>DESCRIPTION</Text>
               <TextInput
                 style={[
@@ -287,7 +305,7 @@ export default function CreateDropScreen() {
             <View style={[styles.infoBox, { backgroundColor: theme.primaryMuted }]}>
               <Ionicons name="information-circle" size={22} color={theme.primary} />
               <Text style={[styles.infoText, { color: theme.textSecondary }]}>
-                Votre Drop sera floute jusqu'a la revelation de dimanche 20h. Seuls vos amis pourront le voir.
+                Votre Drop sera floute jusqu&apos;a la revelation de dimanche 20h. Seuls vos amis pourront le voir.
               </Text>
             </View>
           </FadeInView>
