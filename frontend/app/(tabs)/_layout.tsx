@@ -1,7 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { View, Text, StyleSheet, Platform, Animated } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { useTheme } from '../../src/hooks/useTheme';
 
 interface AnimatedTabIconProps {
@@ -14,34 +14,8 @@ interface AnimatedTabIconProps {
 }
 
 function AnimatedTabIcon({ name, outlineName, color, focused, size = 24, badge }: AnimatedTabIconProps) {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    if (focused) {
-      Animated.sequence([
-        Animated.timing(scaleAnim, {
-          toValue: 1.2,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          friction: 4,
-          tension: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [focused]);
-
   return (
-    <Animated.View style={[styles.iconWrapper, { transform: [{ scale: scaleAnim }] }]}>
+    <View style={styles.iconWrapper}>
       <Ionicons
         name={focused ? name : outlineName}
         size={size}
@@ -52,7 +26,7 @@ function AnimatedTabIcon({ name, outlineName, color, focused, size = 24, badge }
           <Text style={styles.badgeText}>{badge > 9 ? '9+' : badge}</Text>
         </View>
       ) : null}
-    </Animated.View>
+    </View>
   );
 }
 
