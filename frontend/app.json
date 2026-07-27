@@ -14,9 +14,12 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000"
+        "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true
+    },
+    "androidStatusBar": {
+      "backgroundColor": "#000000"
     },
     "web": {
       "bundler": "metro",
@@ -31,7 +34,7 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#000"
+          "backgroundColor": "#000000"
         }
       ],
       "expo-secure-store",
@@ -40,6 +43,19 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "691931f1-85ff-41fc-b4e5-95a163282ee1"
+      }
+    },
+    "owner": "amelbdj1",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/691931f1-85ff-41fc-b4e5-95a163282ee1"
     }
   }
 }
