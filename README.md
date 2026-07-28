@@ -11,6 +11,7 @@ Chaque Drop reste flouté jusqu'à la révélation collective hebdomadaire — u
 [![Database](https://img.shields.io/badge/database-MongoDB-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com/atlas)
 [![Language](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](frontend)
 [![Tests](https://img.shields.io/badge/tests-61%20passing-brightgreen)](backend/test_server.py)
+[![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 
 </div>
 
@@ -28,6 +29,7 @@ Chaque Drop reste flouté jusqu'à la révélation collective hebdomadaire — u
 - [Déploiement](#déploiement)
 - [Sécurité](#sécurité)
 - [Structure du projet](#structure-du-projet)
+- [Licence](#licence)
 
 ---
 
@@ -204,3 +206,7 @@ frontend/
 render.yaml                 Déploiement backend (Render Blueprint)
 AUDIT_DROPA.md              Rapport d'audit complet
 ```
+
+## Licence
+
+Tous droits réservés. Ce dépôt est privé et propriétaire — voir [`LICENSE`](LICENSE). Aucune copie, modification, redistribution ou utilisation n'est autorisée sans permission écrite préalable.
